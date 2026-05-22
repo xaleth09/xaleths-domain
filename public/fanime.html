@@ -62,6 +62,49 @@
   .legend { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 1rem 1.5rem; background: #13131f; border-top: 1px solid #2d2d44; }
   .legend-item { display: flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; color: #94a3b8; }
   .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* tighter room label column */
+  .room-label { width: 120px !important; min-width: 120px !important; }
+  .time-axis { margin-left: 120px !important; }
+
+  /* "LOCATION" column header floated left of each time axis */
+  .time-axis { position: relative; }
+  .time-axis::before {
+    content: "LOCATION";
+    position: absolute;
+    right: 100%;
+    top: 4px;
+    width: 120px;
+    padding-right: 8px;
+    text-align: right;
+    font-size: 0.55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #334155;
+  }
+
+  /* controls restructure */
+  .controls { flex-direction: column; align-items: stretch; gap: 0; }
+  .controls-top { display: flex; align-items: center; gap: 0.6rem; flex-wrap: nowrap; }
+  .controls-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; padding-top: 0.6rem; }
+  .controls-toggle { display: none; background: #1e1e3a; border: 1px solid #3d3d60; color: #94a3b8; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .controls-toggle .chevron { display: inline-block; margin-left: 4px; transition: transform 0.2s; }
+  .controls.collapsed .controls-toggle .chevron { transform: rotate(-90deg); }
+  .controls.collapsed .controls-filters { display: none; }
+  .search-wrap { margin-left: auto; }
+  .search-wrap input { background: #1e1e3a; border: 1px solid #3d3d60; color: #e2e8f0; padding: 0.4rem 0.85rem; border-radius: 6px; font-size: 0.85rem; width: 220px; outline: none; }
+  .search-wrap input:focus { border-color: #818cf8; }
+
+  @media (max-width: 640px) {
+    .controls { padding: 0.6rem 1rem; }
+    .controls-top { width: 100%; }
+    .controls-toggle { display: block; }
+    .filter-label { display: none; }
+    .controls-filters { padding-top: 0.5rem; }
+    .search-wrap { flex: 1; margin-left: 0; }
+    .search-wrap input { width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -76,27 +119,32 @@
   <button class="tab-btn " onclick="switchDay(3)">Sunday May 24</button>
   <button class="tab-btn " onclick="switchDay(4)">Monday May 25</button>
 </div>
-<div class="controls">
-<span class="filter-label">Filter:</span>
-  <button class="filter-btn active" data-cat="panel" style="background:#3b82f6;color:#fff;border-color:#3b82f6" onclick="toggleCat(this)">Panels</button>
-  <button class="filter-btn active" data-cat="gaming" style="background:#22c55e;color:#fff;border-color:#22c55e" onclick="toggleCat(this)">Gaming</button>
-  <button class="filter-btn active" data-cat="performance" style="background:#a855f7;color:#fff;border-color:#a855f7" onclick="toggleCat(this)">Performances</button>
-  <button class="filter-btn active" data-cat="stage" style="background:#ec4899;color:#fff;border-color:#ec4899" onclick="toggleCat(this)">Stage Zero</button>
-  <button class="filter-btn active" data-cat="dance" style="background:#f97316;color:#fff;border-color:#f97316" onclick="toggleCat(this)">Dance & Ball</button>
-  <button class="filter-btn active" data-cat="gathering" style="background:#14b8a6;color:#fff;border-color:#14b8a6" onclick="toggleCat(this)">Gatherings</button>
-  <button class="filter-btn active" data-cat="video" style="background:#6366f1;color:#fff;border-color:#6366f1" onclick="toggleCat(this)">Video Rooms</button>
-  <button class="filter-btn active" data-cat="jfashion" style="background:#f43f5e;color:#fff;border-color:#f43f5e" onclick="toggleCat(this)">J-Fashion</button>
-  <button class="filter-btn active" data-cat="exhibit" style="background:#eab308;color:#fff;border-color:#eab308" onclick="toggleCat(this)">Exhibits</button>
-  <button class="filter-btn active" data-cat="manga" style="background:#0ea5e9;color:#fff;border-color:#0ea5e9" onclick="toggleCat(this)">Manga</button>
-  <button class="filter-btn active" data-cat="karaoke" style="background:#d946ef;color:#fff;border-color:#d946ef" onclick="toggleCat(this)">Karaoke</button>
-  <button class="filter-btn active" data-cat="social" style="background:#fb923c;color:#fff;border-color:#fb923c" onclick="toggleCat(this)">Social Events</button>
-  <button class="filter-btn active" data-cat="adult" style="background:#dc2626;color:#fff;border-color:#dc2626" onclick="toggleCat(this)">18+ Events</button>
-  <button class="filter-btn active" data-cat="lounge" style="background:#64748b;color:#fff;border-color:#64748b" onclick="toggleCat(this)">Lounges</button>
-  <button class="filter-btn active" data-cat="operations" style="background:#94a3b8;color:#fff;border-color:#94a3b8" onclick="toggleCat(this)">Operations</button>
-  <button class="filter-btn active" data-cat="charity" style="background:#10b981;color:#fff;border-color:#10b981" onclick="toggleCat(this)">Charity</button>
-  <button class="filter-btn active" data-cat="food" style="background:#f59e0b;color:#fff;border-color:#f59e0b" onclick="toggleCat(this)">Food</button>
-  <button class="filter-btn active" data-cat="other" style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="toggleCat(this)">Other</button>
-  <div class="search-wrap"><input type="text" id="search" placeholder="Search events…" oninput="filterSearch(this.value)"></div>
+<div class="controls" id="controls">
+  <div class="controls-top">
+    <span class="filter-label">Filter:</span>
+    <button class="controls-toggle" id="filtersToggle" onclick="toggleFilters()">Filters <span class="chevron">▼</span></button>
+    <div class="search-wrap"><input type="text" id="search" placeholder="Search events…" oninput="filterSearch(this.value)"></div>
+  </div>
+  <div class="controls-filters">
+    <button class="filter-btn active" data-cat="panel" style="background:#3b82f6;color:#fff;border-color:#3b82f6" onclick="toggleCat(this)">Panels</button>
+    <button class="filter-btn active" data-cat="gaming" style="background:#22c55e;color:#fff;border-color:#22c55e" onclick="toggleCat(this)">Gaming</button>
+    <button class="filter-btn active" data-cat="performance" style="background:#a855f7;color:#fff;border-color:#a855f7" onclick="toggleCat(this)">Performances</button>
+    <button class="filter-btn active" data-cat="stage" style="background:#ec4899;color:#fff;border-color:#ec4899" onclick="toggleCat(this)">Stage Zero</button>
+    <button class="filter-btn active" data-cat="dance" style="background:#f97316;color:#fff;border-color:#f97316" onclick="toggleCat(this)">Dance & Ball</button>
+    <button class="filter-btn active" data-cat="gathering" style="background:#14b8a6;color:#fff;border-color:#14b8a6" onclick="toggleCat(this)">Gatherings</button>
+    <button class="filter-btn active" data-cat="video" style="background:#6366f1;color:#fff;border-color:#6366f1" onclick="toggleCat(this)">Video Rooms</button>
+    <button class="filter-btn active" data-cat="jfashion" style="background:#f43f5e;color:#fff;border-color:#f43f5e" onclick="toggleCat(this)">J-Fashion</button>
+    <button class="filter-btn active" data-cat="exhibit" style="background:#eab308;color:#fff;border-color:#eab308" onclick="toggleCat(this)">Exhibits</button>
+    <button class="filter-btn active" data-cat="manga" style="background:#0ea5e9;color:#fff;border-color:#0ea5e9" onclick="toggleCat(this)">Manga</button>
+    <button class="filter-btn active" data-cat="karaoke" style="background:#d946ef;color:#fff;border-color:#d946ef" onclick="toggleCat(this)">Karaoke</button>
+    <button class="filter-btn active" data-cat="social" style="background:#fb923c;color:#fff;border-color:#fb923c" onclick="toggleCat(this)">Social Events</button>
+    <button class="filter-btn active" data-cat="adult" style="background:#dc2626;color:#fff;border-color:#dc2626" onclick="toggleCat(this)">18+ Events</button>
+    <button class="filter-btn active" data-cat="lounge" style="background:#64748b;color:#fff;border-color:#64748b" onclick="toggleCat(this)">Lounges</button>
+    <button class="filter-btn active" data-cat="operations" style="background:#94a3b8;color:#fff;border-color:#94a3b8" onclick="toggleCat(this)">Operations</button>
+    <button class="filter-btn active" data-cat="charity" style="background:#10b981;color:#fff;border-color:#10b981" onclick="toggleCat(this)">Charity</button>
+    <button class="filter-btn active" data-cat="food" style="background:#f59e0b;color:#fff;border-color:#f59e0b" onclick="toggleCat(this)">Food</button>
+    <button class="filter-btn active" data-cat="other" style="background:#6b7280;color:#fff;border-color:#6b7280" onclick="toggleCat(this)">Other</button>
+  </div>
 </div>
 <div class="day-content active" id="day-0">
 <div class="venue-section">
@@ -7584,5 +7632,20 @@ function closeModal(e) {
   if (e.target === document.getElementById('modal')) document.getElementById('modal').classList.remove('open');
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('modal').classList.remove('open'); });
+
+function toggleFilters() {
+  document.getElementById('controls').classList.toggle('collapsed');
+}
+
+// Auto-collapse filter bar on scroll down (mobile only), re-expand at top
+let lastScrollY = 0;
+window.addEventListener('scroll', () => {
+  if (window.innerWidth > 640) return;
+  const y = window.scrollY;
+  const ctrl = document.getElementById('controls');
+  if (y > 80 && y > lastScrollY) ctrl.classList.add('collapsed');
+  else if (y < 20) ctrl.classList.remove('collapsed');
+  lastScrollY = y;
+}, { passive: true });
 </script>
 </body></html>
