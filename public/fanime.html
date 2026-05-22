@@ -39,7 +39,8 @@
   .time-tick { position: absolute; font-size: 0.62rem; color: #475569; white-space: nowrap; transform: translateX(-50%); top: 3px; }
   .time-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: #1e2030; pointer-events: none; }
 
-  .room-row { display: flex; align-items: stretch; margin-bottom: 2px; }
+  .room-row { display: flex; align-items: stretch; margin-bottom: 0; border-bottom: 1px solid #1a1f2e; }
+  .room-row:last-child { border-bottom: none; }
   .room-label { width: 170px; min-width: 170px; font-size: 0.68rem; color: #94a3b8; padding: 4px 8px 4px 0; display: flex; align-items: flex-start; padding-top: 6px; line-height: 1.3; border-right: 1px solid #2d2d44; }
   .room-lane { position: relative; flex: 1; background: #16162a; border-radius: 4px; }
 
