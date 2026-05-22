@@ -7634,18 +7634,26 @@ function closeModal(e) {
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('modal').classList.remove('open'); });
 
+let manuallyCollapsed = false;
+
 function toggleFilters() {
-  document.getElementById('controls').classList.toggle('collapsed');
+  const ctrl = document.getElementById('controls');
+  const willCollapse = !ctrl.classList.contains('collapsed');
+  ctrl.classList.toggle('collapsed');
+  manuallyCollapsed = willCollapse;
 }
 
-// Auto-collapse filter bar on scroll down (mobile only), re-expand at top
+// Auto-collapse filter bar on scroll down (mobile only), re-expand at top only if not manually collapsed
 let lastScrollY = 0;
 window.addEventListener('scroll', () => {
   if (window.innerWidth > 640) return;
   const y = window.scrollY;
   const ctrl = document.getElementById('controls');
-  if (y > 80 && y > lastScrollY) ctrl.classList.add('collapsed');
-  else if (y < 20) ctrl.classList.remove('collapsed');
+  if (y > 80 && y > lastScrollY && !ctrl.classList.contains('collapsed')) {
+    ctrl.classList.add('collapsed');
+  } else if (y < 20 && !manuallyCollapsed) {
+    ctrl.classList.remove('collapsed');
+  }
   lastScrollY = y;
 }, { passive: true });
 </script>
