@@ -1,0 +1,99 @@
+/* ─── CSS Custom Properties ──────────────────────────────────────────────── */
+
+:root {
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-bg: #080d1a;
+  --color-surface: #0d1526;
+  --color-cyan: #00d4ff;
+  --color-cyan-glow: rgba(0, 212, 255, 0.4);
+  --color-gold: #f5a623;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #7eb8cc;
+}
+
+/* ─── Box Model Reset ────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ─── Font Rendering ─────────────────────────────────────────────────────── */
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ─── Interaction Defaults ───────────────────────────────────────────────── */
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ─── Focus Styles ───────────────────────────────────────────────────────── */
+
+:focus-visible {
+  outline: 1px solid var(--color-cyan);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ─── Text Selection ─────────────────────────────────────────────────────── */
+
+::selection {
+  background-color: rgba(0, 212, 255, 0.2);
+  color: var(--color-text-primary);
+}
+
+/* ─── Scrollbars ─────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(8, 13, 26, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.2);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, 0.4);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 255, 0.2) rgba(8, 13, 26, 0.6);
+}
+
+/* ─── Media ──────────────────────────────────────────────────────────────── */
+
+img,
+video,
+svg {
+  display: block;
+  max-width: 100%;
+}
