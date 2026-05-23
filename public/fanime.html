@@ -93,7 +93,9 @@
   .controls-toggle .chevron { display: inline-block; margin-left: 4px; transition: transform 0.2s; }
   .controls.collapsed .controls-toggle .chevron { transform: rotate(-90deg); }
   .controls.collapsed .controls-filters { display: none; }
-  .time-axis-sticky { position: sticky; z-index: 30; background: #13131f; overflow: hidden; }
+  .time-axis-sticky { position: sticky; z-index: 30; background: #13131f; }
+  .time-axis-inner { overflow-x: scroll; scrollbar-width: none; }
+  .time-axis-inner::-webkit-scrollbar { display: none; }
   .search-wrap { margin-left: auto; }
   .search-wrap input { background: #1e1e3a; border: 1px solid #3d3d60; color: #e2e8f0; padding: 0.4rem 0.85rem; border-radius: 6px; font-size: 0.85rem; width: 220px; outline: none; }
   .search-wrap input:focus { border-color: #818cf8; }
@@ -7681,15 +7683,23 @@ document.querySelectorAll('.timeline-wrap').forEach(wrap => {
   const sticky = document.createElement('div');
   sticky.className = 'time-axis-sticky';
 
-  const inner = document.createElement('div');
-  inner.style.minWidth = getComputedStyle(timeline).minWidth;
+  // scrollContainer has its own scroll context (hidden scrollbar) so scrollLeft
+  // can be set directly — no transform/clip interaction, guaranteed 1:1 sync
+  const scrollContainer = document.createElement('div');
+  scrollContainer.className = 'time-axis-inner';
 
-  inner.appendChild(axis);
-  sticky.appendChild(inner);
+  // content must be wider than scrollContainer on narrow screens so scrollLeft works
+  const content = document.createElement('div');
+  const tlMinWidth = getComputedStyle(timeline).minWidth;
+  content.style.minWidth = tlMinWidth && tlMinWidth !== '0px' ? tlMinWidth : '900px';
+
+  content.appendChild(axis);
+  scrollContainer.appendChild(content);
+  sticky.appendChild(scrollContainer);
   wrap.parentNode.insertBefore(sticky, wrap);
 
   wrap.addEventListener('scroll', () => {
-    inner.style.transform = `translateX(${-wrap.scrollLeft}px)`;
+    scrollContainer.scrollLeft = wrap.scrollLeft;
   }, { passive: true });
 });
 
