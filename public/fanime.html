@@ -93,6 +93,7 @@
   .controls-toggle .chevron { display: inline-block; margin-left: 4px; transition: transform 0.2s; }
   .controls.collapsed .controls-toggle .chevron { transform: rotate(-90deg); }
   .controls.collapsed .controls-filters { display: none; }
+  .time-axis-sticky { position: sticky; z-index: 30; background: #13131f; overflow: hidden; }
   .search-wrap { margin-left: auto; }
   .search-wrap input { background: #1e1e3a; border: 1px solid #3d3d60; color: #e2e8f0; padding: 0.4rem 0.85rem; border-radius: 6px; font-size: 0.85rem; width: 220px; outline: none; }
   .search-wrap input:focus { border-color: #818cf8; }
@@ -7636,11 +7637,22 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') document.get
 
 let manuallyCollapsed = false;
 
+function controlsHeight() {
+  const el = document.getElementById('controls');
+  return el ? el.offsetHeight : 0;
+}
+
+function updateStickyAxisTop() {
+  const h = controlsHeight();
+  document.querySelectorAll('.time-axis-sticky').forEach(el => { el.style.top = h + 'px'; });
+}
+
 function toggleFilters() {
   const ctrl = document.getElementById('controls');
   const willCollapse = !ctrl.classList.contains('collapsed');
   ctrl.classList.toggle('collapsed');
   manuallyCollapsed = willCollapse;
+  requestAnimationFrame(updateStickyAxisTop);
 }
 
 // Auto-collapse filter bar on scroll down (mobile only), re-expand at top only if not manually collapsed
@@ -7651,10 +7663,37 @@ window.addEventListener('scroll', () => {
   const ctrl = document.getElementById('controls');
   if (y > 80 && y > lastScrollY && !ctrl.classList.contains('collapsed')) {
     ctrl.classList.add('collapsed');
+    requestAnimationFrame(updateStickyAxisTop);
   } else if (y < 20 && !manuallyCollapsed) {
     ctrl.classList.remove('collapsed');
+    requestAnimationFrame(updateStickyAxisTop);
   }
   lastScrollY = y;
 }, { passive: true });
+
+// Sticky time axis: extract each time-axis from its overflow-x scroll container
+// so it can stick vertically while syncing horizontal scroll via transform
+document.querySelectorAll('.timeline-wrap').forEach(wrap => {
+  const timeline = wrap.querySelector('.timeline');
+  const axis = timeline && timeline.querySelector('.time-axis');
+  if (!axis) return;
+
+  const sticky = document.createElement('div');
+  sticky.className = 'time-axis-sticky';
+
+  const inner = document.createElement('div');
+  inner.style.minWidth = getComputedStyle(timeline).minWidth;
+
+  inner.appendChild(axis);
+  sticky.appendChild(inner);
+  wrap.parentNode.insertBefore(sticky, wrap);
+
+  wrap.addEventListener('scroll', () => {
+    inner.style.transform = `translateX(${-wrap.scrollLeft}px)`;
+  }, { passive: true });
+});
+
+updateStickyAxisTop();
+window.addEventListener('resize', updateStickyAxisTop, { passive: true });
 </script>
 </body></html>
