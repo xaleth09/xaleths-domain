@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>distld · flavor form study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#16120e;
+    --panel:#1d1812;
+    --panel2:#241d16;
+    --cream:#e9e0d2;
+    --muted:#8a8073;
+    --faint:#5d564b;
+    --line:rgba(233,224,210,0.10);
+    --line2:rgba(233,224,210,0.16);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--cream);
+    font-family:"DM Mono",monospace;-webkit-font-smoothing:antialiased}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% 0%, #1f1810 0%, var(--bg) 60%);
+    min-height:100vh;padding:28px 22px 40px;
+  }
+  .wrap{max-width:960px;margin:0 auto}
+  header{margin-bottom:22px}
+  .kicker{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint)}
+  h1{font-family:"Cormorant Garamond",serif;font-weight:500;font-size:30px;
+    letter-spacing:.01em;color:var(--cream);margin:4px 0 6px;line-height:1.05}
+  .sub{font-size:12px;color:var(--muted);max-width:60ch;line-height:1.6}
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:26px;margin-top:24px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+
+  /* ---- stage ---- */
+  .stage{position:relative;background:
+      radial-gradient(110% 110% at 50% 38%, #1c1610 0%, #120f0b 100%);
+    border:1px solid var(--line);border-radius:14px;padding:18px 16px 14px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:440px;overflow:hidden}
+  canvas{width:100%;max-width:420px;height:auto;display:block}
+  .drinkname{font-family:"Cormorant Garamond",serif;font-weight:500;
+    font-size:26px;letter-spacing:.02em;color:var(--cream);margin-top:2px;text-align:center}
+  .drinkname .ed{color:var(--faint);font-size:13px;font-family:"DM Mono",monospace;letter-spacing:.1em}
+
+  /* ---- readout ---- */
+  .readout{margin-top:14px;width:100%;max-width:420px;border-top:1px solid var(--line);
+    padding-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
+  .ro{font-size:10.5px;letter-spacing:.04em;color:var(--muted);display:flex;
+    justify-content:space-between;gap:8px}
+  .ro b{color:var(--cream);font-weight:500}
+  .ro .swatch{width:9px;height:9px;border-radius:50%;display:inline-block;
+    vertical-align:middle;margin-left:6px;border:1px solid rgba(255,255,255,.18)}
+
+  /* ---- controls ---- */
+  .panel{display:flex;flex-direction:column;gap:20px}
+  .block{}
+  .blabel{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);
+    margin-bottom:11px;display:flex;justify-content:space-between;align-items:baseline}
+  .blabel span{color:var(--muted);letter-spacing:.04em;text-transform:none;font-size:10px}
+
+  .slider{margin-bottom:11px}
+  .slider:last-child{margin-bottom:0}
+  .srow{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.05em;
+    margin-bottom:5px}
+  .srow .v{color:var(--muted)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:2px;
+    background:var(--line2);border-radius:2px;outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:13px;height:13px;border-radius:50%;background:var(--cream);
+    border:0;box-shadow:0 0 0 3px rgba(22,18,14,1)}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;
+    background:var(--cream);border:0}
+  input[type=range].warm::-webkit-slider-thumb{background:#e6b07a}
+  input[type=range].warm::-moz-range-thumb{background:#e6b07a}
+
+  /* tags */
+  .tags{display:flex;flex-wrap:wrap;gap:7px}
+  .tag{font-family:"DM Mono",monospace;font-size:11px;letter-spacing:.03em;
+    color:var(--muted);background:transparent;border:1px solid var(--line2);
+    border-radius:20px;padding:5px 11px 5px 9px;cursor:pointer;display:flex;
+    align-items:center;gap:7px;transition:all .15s ease}
+  .tag .dot{width:8px;height:8px;border-radius:50%;flex:none;opacity:.55;transition:opacity .15s}
+  .tag.on{color:var(--cream);border-color:var(--line2);background:rgba(233,224,210,.05)}
+  .tag.on .dot{opacity:1}
+  .tag:hover{border-color:rgba(233,224,210,.28)}
+
+  /* presets */
+  .presets{display:flex;flex-wrap:wrap;gap:7px}
+  .preset{font-family:"Cormorant Garamond",serif;font-size:15px;letter-spacing:.01em;
+    color:var(--muted);background:transparent;border:1px solid var(--line2);
+    border-radius:8px;padding:7px 13px;cursor:pointer;transition:all .15s}
+  .preset:hover{color:var(--cream);border-color:rgba(233,224,210,.32)}
+  .preset.active{color:var(--cream);border-color:rgba(233,224,210,.4);background:rgba(233,224,210,.04)}
+
+  .compare-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .cmpbtn{font-size:10.5px;letter-spacing:.05em;color:var(--muted);background:transparent;
+    border:1px solid var(--line2);border-radius:6px;padding:5px 9px;cursor:pointer}
+  .cmpbtn.on{color:#e6b07a;border-color:rgba(230,176,122,.4)}
+
+  .legend{font-size:10px;letter-spacing:.03em;color:var(--faint);line-height:1.9;
+    border-top:1px solid var(--line);padding-top:14px}
+  .legend b{color:var(--muted);font-weight:500}
+  .note{font-size:11px;color:var(--muted);line-height:1.6;margin-top:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">distld — design study</div>
+    <h1>The Flavor Form</h1>
+    <div class="sub">Structure sculpts the <b style="color:var(--cream);font-weight:400">silhouette</b>. Aroma paints the <b style="color:var(--cream);font-weight:400">fill</b>, blended in OKLCH. Heat halos, finish trails, repeat tastings accumulate. Push everything around — the question is whether a drink stays <i>recognizable</i> as you make the form more organic.</div>
+  </header>
+
+  <div class="grid">
+    <!-- STAGE -->
+    <div class="stage">
+      <canvas id="cv" width="440" height="440"></canvas>
+      <div class="drinkname" id="dname">Daiquiri</div>
+      <div class="readout" id="readout"></div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="panel">
+      <div class="block">
+        <div class="blabel">Presets <span>does it stay recognizable?</span></div>
+        <div class="presets" id="presets"></div>
+      </div>
+
+      <div class="block">
+        <div class="blabel">Structure <span>→ silhouette</span></div>
+        <div id="structSliders"></div>
+      </div>
+
+      <div class="block">
+        <div class="blabel">Aroma <span>→ fill (hue)</span></div>
+        <div class="tags" id="tags"></div>
+      </div>
+
+      <div class="block">
+        <div class="blabel">Form <span>skeleton ⟷ organic</span></div>
+        <div class="slider">
+          <div class="srow"><span>Organic</span><span class="v" id="v_organic">0.62</span></div>
+          <input type="range" id="organic" min="0" max="1" step="0.01" value="0.62">
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="blabel">Accumulation <span>repeat tastings</span></div>
+        <div class="slider">
+          <div class="srow"><span>Tastings</span><span class="v" id="v_tastings">1</span></div>
+          <input type="range" id="tastings" min="1" max="20" step="1" value="1">
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="blabel">Compare <span>matched-palate overlap</span></div>
+        <div class="compare-row" id="compareRow"></div>
+      </div>
+
+      <div class="legend">
+        <b>structure</b> → form &nbsp;·&nbsp; <b>aroma</b> → color &nbsp;·&nbsp; <b>heat</b> → halo<br>
+        <b>finish</b> → trailing edge &nbsp;·&nbsp; <b>body</b> → density &nbsp;·&nbsp; <b>tastings</b> → layered rings
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- color: OKLCH -> sRGB (Ottosson) ----------
+function oklchToRgb(L, C, H){
+  const h = H*Math.PI/180, a = C*Math.cos(h), b = C*Math.sin(h);
+  const l_=L+0.3963377774*a+0.2158037573*b;
+  const m_=L-0.1055613458*a-0.0638541728*b;
+  const s_=L-0.0894841775*a-1.2914855480*b;
+  const l=l_**3, m=m_**3, s=s_**3;
+  let r= 4.0767416621*l-3.3077115913*m+0.2309699292*s;
+  let g=-1.2684380046*l+2.6097574011*m-0.3413193965*s;
+  let bb=-0.0041960863*l-0.7034186147*m+1.7076147010*s;
+  const G=x=>x<=0.0031308?12.92*x:1.055*Math.pow(x,1/2.4)-0.055;
+  const c=x=>Math.max(0,Math.min(1,x));
+  return [Math.round(c(G(r))*255),Math.round(c(G(g))*255),Math.round(c(G(bb))*255)];
+}
+function rgbStr([r,g,b],a=1){return `rgba(${r},${g},${b},${a})`}
+// circular mean blend in OKLCH
+function mixOklch(list){
+  if(!list.length) return {L:0.30,C:0,H:40};
+  let sx=0,sy=0,sL=0,sC=0;
+  list.forEach(o=>{const r=o.H*Math.PI/180;sx+=Math.cos(r);sy+=Math.sin(r);sL+=o.L;sC+=o.C;});
+  let H=Math.atan2(sy,sx)*180/Math.PI; if(H<0)H+=360;
+  return {L:sL/list.length, C:sC/list.length, H};
+}
+
+// ---------- data ----------
+const AROMAS = [
+  {id:'citrus',   label:'Citrus',    L:.86,C:.155,H:96},
+  {id:'fruity',   label:'Fruity',    L:.66,C:.205,H:32},
+  {id:'floral',   label:'Floral',    L:.74,C:.130,H:350},
+  {id:'herbal',   label:'Herbal',    L:.72,C:.140,H:148},
+  {id:'woody',    label:'Woody/Oak', L:.56,C:.100,H:66},
+  {id:'spice',    label:'Spice',     L:.62,C:.175,H:46},
+  {id:'vanilla',  label:'Vanilla',   L:.83,C:.095,H:82},
+  {id:'smoky',    label:'Smoky',     L:.44,C:.035,H:60},
+  {id:'maritime', label:'Maritime',  L:.58,C:.060,H:205},
+  {id:'medicinal',label:'Medicinal', L:.52,C:.090,H:300},
+];
+const AROMA_BY_ID = Object.fromEntries(AROMAS.map(a=>[a.id,a]));
+
+// structural axes (hex), top going clockwise
+const AXES = [
+  {id:'sweet', label:'Sweet'},
+  {id:'sour',  label:'Sour'},
+  {id:'bitter',label:'Bitter'},
+  {id:'heat',  label:'Heat'},
+  {id:'body',  label:'Body'},
+  {id:'finish',label:'Finish'},
+];
+
+const PRESETS = {
+  daiquiri:{name:'Daiquiri', struct:{sweet:.70,sour:.85,bitter:.12,heat:.45,body:.30,finish:.25}, aromas:['citrus','fruity','vanilla']},
+  negroni: {name:'Negroni',  struct:{sweet:.45,sour:.30,bitter:.90,heat:.50,body:.70,finish:.80}, aromas:['fruity','herbal','woody','spice']},
+  peated:  {name:'Peated Scotch', struct:{sweet:.20,sour:.15,bitter:.50,heat:.85,body:.80,finish:.95}, aromas:['smoky','maritime','medicinal','woody']},
+  bourbon: {name:'Bourbon',  struct:{sweet:.55,sour:.18,bitter:.40,heat:.80,body:.75,finish:.70}, aromas:['woody','vanilla','spice','fruity']},
+};
+
+// ---------- state ----------
+const state = {
+  name:'Daiquiri',
+  preset:'daiquiri',
+  struct:{...PRESETS.daiquiri.struct},
+  aromas:new Set(PRESETS.daiquiri.aromas),
+  organic:0.62,
+  tastings:1,
+  compare:null,
+};
+
+// ---------- geometry ----------
+const R0=150, CX=220, CY=222;
+function axisAngle(i){ return (-90 + i*60) * Math.PI/180; }
+function vertices(struct, scale=1){
+  return AXES.map((ax,i)=>{
+    const v=struct[ax.id];
+    const r=R0*(0.34+0.66*v)*scale;
+    const a=axisAngle(i);
+    return {x:CX+Math.cos(a)*r, y:CY+Math.sin(a)*r};
+  });
+}
+function buildPath(ctx, pts, tension){
+  const n=pts.length;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x,pts[0].y);
+  for(let i=0;i<n;i++){
+    const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
+    const c1x=p1.x+(p2.x-p0.x)/6*tension, c1y=p1.y+(p2.y-p0.y)/6*tension;
+    const c2x=p2.x-(p3.x-p1.x)/6*tension, c2y=p2.y-(p3.y-p1.y)/6*tension;
+    ctx.bezierCurveTo(c1x,c1y,c2x,c2y,p2.x,p2.y);
+  }
+  ctx.closePath();
+}
+function seededRand(s){const x=Math.sin(s*9999.7)*10000;return x-Math.floor(x);}
+
+// ---------- render ----------
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+function setupDPR(){
+  const dpr=window.devicePixelRatio||1;
+  cv.width=440*dpr; cv.height=440*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+setupDPR();
+
+function activeAromaObjs(set){ return [...set].map(id=>AROMA_BY_ID[id]); }
+
+function paintForm(struct, aromaSet, organic, opts={}){
+  const {alpha=1, scale=1, jitter=null, ghost=false} = opts;
+  const aObjs=activeAromaObjs(aromaSet);
+  const mix=mixOklch(aObjs);
+  // body darkens & densifies
+  const baseL=Math.max(0.22, mix.L - struct.body*0.14);
+  const baseRgb=oklchToRgb(baseL, mix.C*0.92, mix.H);
+
+  let pts=vertices(struct, scale);
+  if(jitter){
+    pts=pts.map((p,i)=>{
+      const dx=(seededRand(jitter+i)-.5)*16, dy=(seededRand(jitter+i+50)-.5)*16;
+      return {x:p.x+dx,y:p.y+dy};
+    });
+  }
+  const tension=organic*1.08;
+
+  ctx.save();
+  buildPath(ctx,pts,tension);
+  ctx.clip();
+
+  // base wash
+  const wash=ctx.createRadialGradient(CX,CY-12,8,CX,CY,R0*1.15);
+  const bodyA=(0.5+0.5*struct.body);
+  wash.addColorStop(0, rgbStr(oklchToRgb(Math.min(0.95,baseL+0.12), mix.C, mix.H), (ghost?0.5:1)*bodyA*alpha));
+  wash.addColorStop(1, rgbStr(baseRgb, (ghost?0.35:0.85)*bodyA*alpha));
+  ctx.fillStyle=wash;
+  ctx.fillRect(0,0,440,440);
+
+  // per-aroma glows for texture
+  if(!ghost){
+    aObjs.forEach((o,i)=>{
+      const ang=(o.H/360)*Math.PI*2;
+      const gx=CX+Math.cos(ang)*R0*0.42, gy=CY+Math.sin(ang)*R0*0.42;
+      const rgb=oklchToRgb(o.L,o.C,o.H);
+      const g=ctx.createRadialGradient(gx,gy,4,gx,gy,R0*0.75);
+      g.addColorStop(0,rgbStr(rgb,0.55*alpha));
+      g.addColorStop(1,rgbStr(rgb,0));
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle=g; ctx.fillRect(0,0,440,440);
+    });
+    ctx.globalCompositeOperation='source-over';
+  }
+  ctx.restore();
+
+  // outline
+  if(!ghost){
+    buildPath(ctx,pts,tension);
+    ctx.strokeStyle=rgbStr(oklchToRgb(Math.min(0.96,baseL+0.2),mix.C*0.7,mix.H),0.5*alpha);
+    ctx.lineWidth=1; ctx.stroke();
+  }
+  return {pts,tension,baseRgb,mix};
+}
+
+function render(){
+  ctx.clearRect(0,0,440,440);
+
+  const struct=state.struct, organic=state.organic;
+  const aObjs=activeAromaObjs(state.aromas);
+  const mix=mixOklch(aObjs);
+  const baseRgb=oklchToRgb(Math.max(0.3,mix.L), mix.C, mix.H);
+
+  // ---- heat halo (behind) ----
+  if(struct.heat>0.02){
+    const hr=R0*(1.05+0.55*struct.heat);
+    const halo=ctx.createRadialGradient(CX,CY,R0*0.5,CX,CY,hr);
+    const heatRgb=oklchToRgb(0.72,0.15,55);
+    halo.addColorStop(0,rgbStr(heatRgb,0));
+    halo.addColorStop(0.72,rgbStr(heatRgb,0.05+0.16*struct.heat));
+    halo.addColorStop(1,rgbStr(heatRgb,0));
+    ctx.globalCompositeOperation='lighter';
+    ctx.fillStyle=halo; ctx.fillRect(0,0,440,440);
+    ctx.globalCompositeOperation='source-over';
+  }
+
+  // ---- finish trail (behind) ----
+  if(struct.finish>0.05){
+    const dir=axisAngle(5); // finish axis direction
+    const dx=Math.cos(dir), dy=Math.sin(dir);
+    const echoes=Math.round(3+struct.finish*6);
+    ctx.globalCompositeOperation='lighter';
+    for(let e=echoes;e>=1;e--){
+      const t=e/echoes;
+      const off=struct.finish*70*t;
+      const sc=1-0.16*t;
+      const a=0.10*(1-t)*0.9;
+      ctx.save();
+      ctx.translate(dx*off, dy*off);
+      const pts=vertices(struct,sc).map(p=>({x:CX+(p.x-CX),y:CY+(p.y-CY)}));
+      buildPath(ctx,pts,organic*1.08);
+      ctx.fillStyle=rgbStr(baseRgb,a);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalCompositeOperation='source-over';
+  }
+
+  // ---- accumulation ghosts (behind main) ----
+  if(state.tastings>1){
+    for(let i=1;i<state.tastings;i++){
+      const a=0.055+0.02*(i/state.tastings);
+      paintForm(struct,state.aromas,organic,{alpha:a, scale:1+(seededRand(i)-.5)*0.10, jitter:i*7+3, ghost:true});
+    }
+  }
+
+  // ---- main form ----
+  paintForm(struct,state.aromas,organic,{alpha:1});
+
+  // ---- compare overlay (additive) ----
+  if(state.compare && PRESETS[state.compare]){
+    const p=PRESETS[state.compare];
+    ctx.globalCompositeOperation='lighter';
+    const cObjs=p.aromas.map(id=>AROMA_BY_ID[id]);
+    const cmix=mixOklch(cObjs);
+    const crgb=oklchToRgb(Math.min(0.7,cmix.L),cmix.C,cmix.H);
+    const pts=vertices(p.struct,1);
+    buildPath(ctx,pts,organic*1.08);
+    ctx.save(); ctx.clip();
+    const g=ctx.createRadialGradient(CX,CY,8,CX,CY,R0*1.1);
+    g.addColorStop(0,rgbStr(crgb,0.34));
+    g.addColorStop(1,rgbStr(crgb,0.12));
+    ctx.fillStyle=g; ctx.fillRect(0,0,440,440);
+    ctx.restore();
+    buildPath(ctx,pts,organic*1.08);
+    ctx.strokeStyle=rgbStr(crgb,0.45); ctx.lineWidth=1; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalCompositeOperation='source-over';
+  }
+
+  // ---- skeleton guides when very low organic ----
+  if(organic<0.18){
+    ctx.strokeStyle='rgba(233,224,210,0.10)'; ctx.lineWidth=0.75;
+    AXES.forEach((ax,i)=>{
+      const a=axisAngle(i);
+      ctx.beginPath(); ctx.moveTo(CX,CY);
+      ctx.lineTo(CX+Math.cos(a)*R0,CY+Math.sin(a)*R0); ctx.stroke();
+    });
+  }
+
+  updateReadout(mix);
+}
+
+// ---------- readout ----------
+function updateReadout(mix){
+  const ro=document.getElementById('readout');
+  const rgb=oklchToRgb(mix.L,mix.C,mix.H);
+  const dominant = [...state.aromas].length
+    ? AROMA_BY_ID[[...state.aromas][0]].label : '—';
+  const rows=[
+    ['form', state.organic<0.18?'skeleton':state.organic>0.8?'organic':'blended'],
+    ['hue°', Math.round(mix.H)+'°'],
+    ['chroma', mix.C.toFixed(3)],
+    ['tastings', state.tastings],
+  ];
+  ro.innerHTML = rows.map(([k,v])=>`<div class="ro"><span>${k}</span><b>${v}</b></div>`).join('')
+    + `<div class="ro"><span>fill</span><b>oklch <span class="swatch" style="background:${rgbStr(rgb)}"></span></b></div>`
+    + `<div class="ro"><span>aromas</span><b>${[...state.aromas].length}</b></div>`;
+}
+
+// ---------- build controls ----------
+function buildStructSliders(){
+  const c=document.getElementById('structSliders');
+  c.innerHTML=AXES.map(ax=>`
+    <div class="slider">
+      <div class="srow"><span>${ax.label}</span><span class="v" id="sv_${ax.id}">${state.struct[ax.id].toFixed(2)}</span></div>
+      <input type="range" class="${ax.id==='heat'?'warm':''}" id="s_${ax.id}" min="0" max="1" step="0.01" value="${state.struct[ax.id]}">
+    </div>`).join('');
+  AXES.forEach(ax=>{
+    const inp=document.getElementById('s_'+ax.id);
+    inp.addEventListener('input',e=>{
+      state.struct[ax.id]=+e.target.value;
+      document.getElementById('sv_'+ax.id).textContent=(+e.target.value).toFixed(2);
+      clearPresetHighlight();
+      render();
+    });
+  });
+}
+function buildTags(){
+  const c=document.getElementById('tags');
+  c.innerHTML=AROMAS.map(a=>{
+    const rgb=oklchToRgb(a.L,a.C,a.H);
+    const on=state.aromas.has(a.id);
+    return `<button class="tag ${on?'on':''}" data-id="${a.id}">
+      <span class="dot" style="background:${rgbStr(rgb)}"></span>${a.label}</button>`;
+  }).join('');
+  c.querySelectorAll('.tag').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const id=btn.dataset.id;
+      if(state.aromas.has(id))state.aromas.delete(id); else state.aromas.add(id);
+      btn.classList.toggle('on');
+      clearPresetHighlight();
+      render();
+    });
+  });
+}
+function buildPresets(){
+  const c=document.getElementById('presets');
+  c.innerHTML=Object.entries(PRESETS).map(([k,p])=>
+    `<button class="preset ${k===state.preset?'active':''}" data-k="${k}">${p.name}</button>`).join('');
+  c.querySelectorAll('.preset').forEach(btn=>{
+    btn.addEventListener('click',()=>applyPreset(btn.dataset.k));
+  });
+}
+function buildCompare(){
+  const c=document.getElementById('compareRow');
+  c.innerHTML=`<button class="cmpbtn ${!state.compare?'on':''}" data-k="">off</button>`+
+    Object.entries(PRESETS).map(([k,p])=>
+    `<button class="cmpbtn ${state.compare===k?'on':''}" data-k="${k}">${p.name}</button>`).join('');
+  c.querySelectorAll('.cmpbtn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      state.compare=btn.dataset.k||null;
+      buildCompare(); render();
+    });
+  });
+}
+function applyPreset(k){
+  const p=PRESETS[k];
+  state.preset=k; state.name=p.name;
+  state.struct={...p.struct};
+  state.aromas=new Set(p.aromas);
+  document.getElementById('dname').innerHTML=p.name;
+  buildStructSliders(); buildTags(); buildPresets();
+  render();
+}
+function clearPresetHighlight(){
+  state.preset=null;
+  document.querySelectorAll('.preset').forEach(b=>b.classList.remove('active'));
+  document.getElementById('dname').innerHTML=`${state.name} <span class="ed">· edited</span>`;
+}
+
+document.getElementById('organic').addEventListener('input',e=>{
+  state.organic=+e.target.value;
+  document.getElementById('v_organic').textContent=(+e.target.value).toFixed(2);
+  render();
+});
+document.getElementById('tastings').addEventListener('input',e=>{
+  state.tastings=+e.target.value;
+  document.getElementById('v_tastings').textContent=e.target.value;
+  render();
+});
+
+// init
+buildStructSliders(); buildTags(); buildPresets(); buildCompare();
+render();
+window.addEventListener('resize',()=>{setupDPR();render();});
+</script>
+</body>
+</html>

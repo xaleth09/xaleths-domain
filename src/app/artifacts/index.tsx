@@ -14,6 +14,13 @@ type Artifact = {
 
 const ARTIFACTS: Artifact[] = [
   {
+    id: 'flavor-form-study',
+    title: 'Flavor Form Study',
+    description: 'Visual design exploration for distld — studying how flavor maps to form. Part of the distilled visual design direction work.',
+    url: '/flavor-form-study.html',
+    tag: 'DESIGN',
+  },
+  {
     id: 'fanime-2026',
     title: 'FanimeCon 2026 Schedule',
     description: 'Interactive event schedule for FanimeCon 2026. May 22–26, San Jose CA. Filter by category, search by name, tap for details.',
