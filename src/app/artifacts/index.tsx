@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,9 +11,20 @@ type Artifact = {
   description: string;
   url: string;
   tag?: string;
+  // Real protection lives in the Worker; this flag is only the UI marker.
+  requiresAuth?: boolean;
 };
 
 const ARTIFACTS: Artifact[] = [
+  {
+    // DEMO: delete this card + public/private/members-demo.html once verified.
+    id: 'members-demo',
+    title: 'Members-Only Demo',
+    description: 'Throwaway page to verify the password gate works. Locked until you enter the access key; delete once confirmed.',
+    url: '/private/members-demo.html',
+    tag: 'DEMO',
+    requiresAuth: true,
+  },
   {
     id: 'flavor-form-study',
     title: 'Flavor Form Study',
@@ -31,11 +43,24 @@ const ARTIFACTS: Artifact[] = [
 
 export default function ArtifactsScreen() {
   const router = useRouter();
+  const [authed, setAuthed] = useState(false);
 
-  function openArtifact(url: string) {
-    if (Platform.OS === 'web') {
-      (window as Window).open(url, '_blank');
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    fetch('/api/auth-status')
+      .then(res => res.json())
+      .then((data: { authed?: boolean }) => setAuthed(Boolean(data.authed)))
+      .catch(() => setAuthed(false));
+  }, []);
+
+  function openArtifact(artifact: Artifact) {
+    if (Platform.OS !== 'web') return;
+    if (artifact.requiresAuth && !authed) {
+      // Bounce through the styled login, then land back on the artifact.
+      window.location.href = `/login?next=${encodeURIComponent(artifact.url)}`;
+      return;
     }
+    (window as Window).open(artifact.url, '_blank');
   }
 
   return (
@@ -52,23 +77,33 @@ export default function ArtifactsScreen() {
           </View>
 
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-            {ARTIFACTS.map(artifact => (
-              <View key={artifact.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  {artifact.tag && (
-                    <Text style={styles.tag}>{artifact.tag}</Text>
-                  )}
-                  <Text style={styles.cardTitle}>{artifact.title}</Text>
+            {ARTIFACTS.map(artifact => {
+              const locked = Boolean(artifact.requiresAuth) && !authed;
+              return (
+                <View key={artifact.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.tagRow}>
+                      {artifact.tag && (
+                        <Text style={styles.tag}>{artifact.tag}</Text>
+                      )}
+                      {artifact.requiresAuth && (
+                        <Text style={styles.lockBadge}>
+                          {locked ? '🔒 LOCKED' : '🔓 UNLOCKED'}
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={styles.cardTitle}>{artifact.title}</Text>
+                  </View>
+                  <Text style={styles.cardDescription}>{artifact.description}</Text>
+                  <Pressable
+                    style={({ pressed }) => [styles.openButton, pressed && styles.openButtonPressed]}
+                    onPress={() => openArtifact(artifact)}
+                  >
+                    <Text style={styles.openButtonText}>{locked ? 'UNLOCK →' : 'OPEN →'}</Text>
+                  </Pressable>
                 </View>
-                <Text style={styles.cardDescription}>{artifact.description}</Text>
-                <Pressable
-                  style={({ pressed }) => [styles.openButton, pressed && styles.openButtonPressed]}
-                  onPress={() => openArtifact(artifact.url)}
-                >
-                  <Text style={styles.openButtonText}>OPEN →</Text>
-                </Pressable>
-              </View>
-            ))}
+              );
+            })}
           </ScrollView>
 
         </View>
@@ -132,11 +167,22 @@ const styles = StyleSheet.create({
   cardHeader: {
     gap: spacing.xs,
   },
+  tagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   tag: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 2,
     color: colors.accent.cyan,
+  },
+  lockBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: colors.accent.gold,
   },
   cardTitle: {
     fontSize: 16,
