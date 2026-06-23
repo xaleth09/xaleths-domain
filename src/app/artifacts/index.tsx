@@ -20,8 +20,9 @@ const ARTIFACTS: Artifact[] = [
     id: 'flavor-form-study',
     title: 'Flavor Form Study',
     description: 'Visual design exploration for distld — studying how flavor maps to form. Part of the distilled visual design direction work.',
-    url: '/flavor-form-study.html',
+    url: '/private/flavor-form-study.html',
     tag: 'DESIGN',
+    requiresAuth: true,
   },
   {
     id: 'fanime-2026',
