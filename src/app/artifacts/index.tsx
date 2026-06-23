@@ -17,15 +17,6 @@ type Artifact = {
 
 const ARTIFACTS: Artifact[] = [
   {
-    // DEMO: delete this card + public/private/members-demo.html once verified.
-    id: 'members-demo',
-    title: 'Members-Only Demo',
-    description: 'Throwaway page to verify the password gate works. Locked until you enter the access key; delete once confirmed.',
-    url: '/private/members-demo.html',
-    tag: 'DEMO',
-    requiresAuth: true,
-  },
-  {
     id: 'flavor-form-study',
     title: 'Flavor Form Study',
     description: 'Visual design exploration for distld — studying how flavor maps to form. Part of the distilled visual design direction work.',
