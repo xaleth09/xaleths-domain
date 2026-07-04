@@ -17,6 +17,13 @@ type Artifact = {
 
 const ARTIFACTS: Artifact[] = [
   {
+    id: 'weed-comparison',
+    title: 'California Cannabis Flower Guide',
+    description: 'Buyer\'s guide to seven prominent California cannabis flower brands (2026) — ranked from ultra-premium boutique down to budget bulk, with a quality matrix, brand profiles, and a shopping playbook.',
+    url: '/weed-comparison.html',
+    tag: 'GUIDE',
+  },
+  {
     id: 'flavor-form-study',
     title: 'Flavor Form Study',
     description: 'Visual design exploration for distld — studying how flavor maps to form. Part of the distilled visual design direction work.',
