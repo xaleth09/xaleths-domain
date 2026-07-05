@@ -19,7 +19,7 @@ const ARTIFACTS: Artifact[] = [
   {
     id: 'weed-comparison',
     title: 'California Cannabis Flower Guide',
-    description: 'Buyer\'s guide to seven prominent California cannabis flower brands (2026) — ranked from ultra-premium boutique down to budget bulk, with a quality matrix, brand profiles, and a shopping playbook.',
+    description: 'Buyer\'s guide to nine prominent California cannabis flower brands (2026) — ranked from ultra-premium boutique down to budget bulk, with a quality matrix, brand profiles, and a shopping playbook.',
     url: '/weed-comparison.html',
     tag: 'GUIDE',
   },
