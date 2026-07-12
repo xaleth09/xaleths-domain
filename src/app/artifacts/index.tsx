@@ -19,7 +19,7 @@ const ARTIFACTS: Artifact[] = [
   {
     id: 'team-splitter',
     title: 'Team Splitter',
-    description: 'Every valid way to split a 7-player pool into two 3-person core teams for 9-ball league play — both teams kept in Gold or Silver (never Platinum), the odd player out as a rating-free sub. Balance thermometer, division targets, and a filter for who sits.',
+    description: 'Every valid way to split the player pool into two 3-person core teams for 9-ball league play — both teams kept in Gold or Silver (never Platinum), leftovers as rating-free subs. Enforces Robbi & Aaron on opposite teams and the higher-rated-only sub rule, with a balance thermometer, division-matchup views, and a "same team" player filter.',
     url: '/team-splitter.html',
     tag: 'TOOL',
   },
