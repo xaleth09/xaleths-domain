@@ -135,20 +135,11 @@
   .spread-cell { font-weight: 800; }
   .rank { color: var(--ink-3); width: 1%; }
 
-  .therm { min-width: 150px; margin: 0 auto; }
-  .therm .scale { position: relative; height: 20px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
-  .therm .zone { position: absolute; top: 0; bottom: 0; }
-  .therm .z-silver { background: var(--silver-soft); }
-  .therm .z-gold { background: var(--gold-soft); }
-  .therm .z-over { background: var(--danger-soft); }
-  .therm .cap { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ink-3); opacity: .5; }
-  .therm .connector { position: absolute; top: 50%; height: 3px; transform: translateY(-50%); background: var(--ink-3); opacity: .55; border-radius: 2px; }
-  .therm .dot { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; transform: translate(-50%,-50%); border: 2px solid var(--surface); box-shadow: 0 0 0 1px rgba(0,0,0,.12); }
-  .rel { margin-top: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
-  .rel .d { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-  .rel.different { color: var(--good); }
-  .rel.both-silver { color: var(--silver); }
-  .rel.both-gold { color: var(--gold); }
+  .matchup { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
+  .matchup .ic { font-size: 11px; line-height: 1; }
+  .matchup.good { color: var(--good); background: var(--good-soft); }
+  .matchup.warn { color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line-strong); }
+  .matchup-cap { margin-top: 5px; font-size: 11px; font-weight: 600; color: var(--ink-3); }
 
   .empty { padding: 44px 16px; text-align: center; color: var(--ink-3); font-size: 14px; }
 
@@ -244,7 +235,7 @@
               <tr>
                 <th class="rank">#</th>
                 <th>Team A</th>
-                <th class="ctr">Balance &amp; matchup</th>
+                <th class="ctr">Matchup</th>
                 <th>Team B</th>
                 <th>Subs</th>
                 <th class="rt">Spread</th>
@@ -294,7 +285,7 @@
   const IDENT = ["#5F7A8C","#B8892E","#7B6BA8","#4C8C7A","#B06A4A","#3E7CA8","#A85070","#4F9A8C"];
   const GARZA = 4, NGO = 1, KAY = 3;
 
-  const SILVER_CAP = 1500, GOLD_CAP = 1650, SCALE_MIN = 1100, SCALE_MAX = 1700;
+  const SILVER_CAP = 1500, GOLD_CAP = 1650;
 
   // ---------- state ----------
   const state = { show: "all", sort: "balance", want: new Set(), keepApart: true, kayIn: true };
@@ -420,20 +411,15 @@
     wrap.appendChild(clear);
   }
 
-  // ---------- thermometer ----------
-  const pct = v => Math.max(0, Math.min(100, (v - SCALE_MIN) / (SCALE_MAX - SCALE_MIN) * 100));
-  function thermHTML(s) {
-    const se = pct(SILVER_CAP), ge = pct(GOLD_CAP), pa = pct(s.aT), pb = pct(s.bT), lo = Math.min(pa, pb), hi = Math.max(pa, pb);
-    const col = d => d === "silver" ? "var(--silver)" : "var(--gold)";
-    return `<div class="therm"><div class="scale">
-        <div class="zone z-silver" style="left:0;width:${se}%"></div>
-        <div class="zone z-gold" style="left:${se}%;width:${ge - se}%"></div>
-        <div class="zone z-over" style="left:${ge}%;right:0"></div>
-        <div class="cap" style="left:${se}%"></div><div class="cap" style="left:${ge}%"></div>
-        <div class="connector" style="left:${lo}%;width:${hi - lo}%"></div>
-        <div class="dot" style="left:${pb}%;background:${col(s.bDiv)}"></div>
-        <div class="dot" style="left:${pa}%;background:${col(s.aDiv)}"></div>
-      </div><span class="rel ${s.relation}"><span class="d"></span>${REL[s.relation]}</span></div>`;
+  // ---------- matchup badge: will the two teams meet? ----------
+  const MATCHUP = {
+    different:     { cls: "good", ic: "✓", lead: "Won’t meet",  cap: "Silver + Gold" },
+    "both-silver": { cls: "warn", ic: "⚠", lead: "May meet",    cap: "both in Silver" },
+    "both-gold":   { cls: "warn", ic: "⚠", lead: "May meet",    cap: "both in Gold" },
+  };
+  function matchupHTML(s) {
+    const m = MATCHUP[s.relation];
+    return `<span class="matchup ${m.cls}"><span class="ic">${m.ic}</span>${m.lead}</span><div class="matchup-cap">${m.cap}</div>`;
   }
 
   // ---------- table ----------
@@ -457,7 +443,7 @@
       tr.innerHTML = `
         <td class="rank num">${idx + 1}</td>
         <td class="team-cell"><div class="names">${names(s.A)}</div><div class="meta"><span class="tot num">${s.aT}</span>${pill(s.aDiv)}</div></td>
-        <td class="ctr">${thermHTML(s)}</td>
+        <td class="ctr">${matchupHTML(s)}</td>
         <td class="team-cell"><div class="names">${names(s.B)}</div><div class="meta"><span class="tot num">${s.bT}</span>${pill(s.bDiv)}</div></td>
         <td class="sub-cell">sits: <span class="who">${subLabel(s)}</span></td>
         <td class="rt spread-cell num">${s.spread}</td>`;
