@@ -17,10 +17,10 @@ type Artifact = {
 
 const ARTIFACTS: Artifact[] = [
   {
-    id: 'trio-board',
-    title: 'Trio Board',
-    description: 'Player ratings and all 35 three-player combinations for a 7-person pool — sortable tables, a distribution of trio totals, and filters to require or exclude specific players when balancing groups.',
-    url: '/trio-board.html',
+    id: 'team-splitter',
+    title: 'Team Splitter',
+    description: 'Every valid way to split a 7-player pool into two 3-person core teams for 9-ball league play — both teams kept in Gold or Silver (never Platinum), the odd player out as a rating-free sub. Balance thermometer, division targets, and a filter for who sits.',
+    url: '/team-splitter.html',
     tag: 'TOOL',
   },
   {
