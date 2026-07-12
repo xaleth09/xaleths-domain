@@ -261,7 +261,7 @@
 
     <footer>
       Team totals are the sum of the three core players' ratings · caps: <b>Silver 1,500</b> · <b>Gold 1,650</b> · Platinum 1,800 (avoided) · subs don't count toward the cap.<br>
-      Two teams in the <b>same</b> division may be drawn against each other; a <b>Silver + Gold</b> split keeps them apart. Both-Silver is cheapest but shares the Silver division — enter one team in Gold to separate them.
+      Division is set strictly by rating — a core ≤ 1,500 plays Silver, 1,501–1,650 plays Gold (no playing up). Two teams in the <b>same</b> division can be drawn against each other; only a <b>Silver + Gold</b> split (one core under 1,500, one over) keeps them apart. Both-Silver is the cheapest, but the two teams unavoidably share the Silver division.
     </footer>
   </div>
 </div>
@@ -391,7 +391,7 @@
     if (diff) wrap.appendChild(recCard({ flag: "Kept apart · different divisions", apart: true,
       why: "The most balanced split with one team in Silver and one in Gold — the two teams are in different divisions, so they can never be drawn against each other.", split: diff }));
     if (silver) wrap.appendChild(recCard({ flag: "Cheapest · both in Silver",
-      why: "Both cores under 1,500, so both teams can enter Silver — the lowest fee. Same division, though, so you could face each other; enter one team in Gold to keep them apart.", split: silver }));
+      why: "Both cores under 1,500, so both teams play Silver — the lowest fee. They share the Silver division, though, so they can be drawn against each other; the only way to avoid that is a split where one core lands in Gold.", split: silver }));
     if (!diff && !silver && P.length) wrap.appendChild(recCard({ flag: "Most balanced", why: "The most balanced split under the current rules.", split: [...P].sort(byBalance)[0] }));
   }
 
