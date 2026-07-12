@@ -17,6 +17,13 @@ type Artifact = {
 
 const ARTIFACTS: Artifact[] = [
   {
+    id: 'trio-board',
+    title: 'Trio Board',
+    description: 'Player ratings and all 35 three-player combinations for a 7-person pool — sortable tables, a distribution of trio totals, and filters to require or exclude specific players when balancing groups.',
+    url: '/trio-board.html',
+    tag: 'TOOL',
+  },
+  {
     id: 'weed-comparison',
     title: 'California Cannabis Flower Guide',
     description: 'Buyer\'s guide to nine prominent California cannabis flower brands (2026) — ranked from ultra-premium boutique down to budget bulk, with a quality matrix, brand profiles, and a shopping playbook.',
