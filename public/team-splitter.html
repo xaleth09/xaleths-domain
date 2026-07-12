@@ -130,8 +130,9 @@
   .team-cell .names { font-weight: 700; color: var(--ink); }
   .team-cell .meta { margin-top: 5px; display: flex; align-items: center; gap: 8px; }
   .team-cell .meta .tot { font-weight: 800; }
-  .sub-cell { color: var(--ink-2); }
-  .sub-cell .who { font-weight: 700; color: var(--ink); }
+  .team-cell .subline { margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+  .team-cell .subline .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); border: 1px solid var(--line-strong); border-radius: 5px; padding: 0 5px; margin-left: 3px; }
+  .team-cell .subline.none { color: var(--ink-3); font-weight: 500; font-style: italic; }
   .spread-cell { font-weight: 800; }
   .rank { color: var(--ink-3); width: 1%; }
 
@@ -237,7 +238,6 @@
                 <th>Team A</th>
                 <th class="ctr">Matchup</th>
                 <th>Team B</th>
-                <th>Subs</th>
                 <th class="rt">Spread</th>
               </tr>
             </thead>
@@ -327,9 +327,13 @@
         s.bothGold = aT > SILVER_CAP && bT > SILVER_CAP;
         s.different = s.aDiv !== s.bDiv;
         s.relation = s.different ? "different" : (s.bothSilver ? "both-silver" : "both-gold");
-        // rosters for the "same team" filter — subs can back up either team, so they belong to both
-        s.rosterA = new Set([...A, ...subs]);
-        s.rosterB = new Set([...B, ...subs]);
+        // designate one sub per team: the lower-rated team (B) gets a backup first, and with
+        // two subs the stronger one goes to that weaker team. Each sub is rostered to ONE team.
+        const sortedSubs = [...subs].sort((x, y) => PLAYERS[y].rating - PLAYERS[x].rating);
+        s.subB = sortedSubs.length ? sortedSubs[0] : null;          // B is the lower-total team
+        s.subA = sortedSubs.length > 1 ? sortedSubs[1] : null;
+        s.rosterA = new Set([...A, ...(s.subA != null ? [s.subA] : [])]);
+        s.rosterB = new Set([...B, ...(s.subB != null ? [s.subB] : [])]);
         SPLITS.push(s);
       }
     }
@@ -368,7 +372,7 @@
   }
 
   // ---------- recommendation cards ----------
-  function subLabel(s) { return s.subs.map(i => PLAYERS[i].first).join(" + ") || "—"; }
+  const subName = id => id == null ? "none" : PLAYERS[id].first;
   function recCard({ flag, why, split, apart }) {
     const c = el("div", "rec" + (apart ? " apart" : ""));
     c.innerHTML = `
@@ -379,7 +383,7 @@
         <div class="vs">VS</div>
         <div class="team"><div class="tt">Team B</div><div class="names">${names(split.B)}</div><div class="tot"><span class="bignum num">${split.bT}</span>${pill(split.bDiv)}</div></div>
       </div>
-      <div class="foot"><span>Subs: <b>${subLabel(split)}</b></span><span>Spread: <b class="num">${split.spread}</b></span></div>`;
+      <div class="foot"><span>Subs — Team A: <b>${subName(split.subA)}</b> · Team B: <b>${subName(split.subB)}</b></span><span>Spread: <b class="num">${split.spread}</b></span></div>`;
     return c;
   }
   function renderRecs() {
@@ -421,6 +425,13 @@
     const m = MATCHUP[s.relation];
     return `<span class="matchup ${m.cls}"><span class="ic">${m.ic}</span>${m.lead}</span><div class="matchup-cap">${m.cap}</div>`;
   }
+  function teamCell(team, total, div, subId) {
+    return `<div class="names">${names(team)}</div>`
+      + `<div class="meta"><span class="tot num">${total}</span>${pill(div)}</div>`
+      + (subId != null
+          ? `<div class="subline">+ ${PLAYERS[subId].first} <span class="tag">sub</span></div>`
+          : `<div class="subline none">no sub</div>`);
+  }
 
   // ---------- table ----------
   function currentList() {
@@ -442,10 +453,9 @@
       const tr = el("tr" + (idx === 0 ? "" : ""), idx === 0 ? "top" : "");
       tr.innerHTML = `
         <td class="rank num">${idx + 1}</td>
-        <td class="team-cell"><div class="names">${names(s.A)}</div><div class="meta"><span class="tot num">${s.aT}</span>${pill(s.aDiv)}</div></td>
+        <td class="team-cell">${teamCell(s.A, s.aT, s.aDiv, s.subA)}</td>
         <td class="ctr">${matchupHTML(s)}</td>
-        <td class="team-cell"><div class="names">${names(s.B)}</div><div class="meta"><span class="tot num">${s.bT}</span>${pill(s.bDiv)}</div></td>
-        <td class="sub-cell">sits: <span class="who">${subLabel(s)}</span></td>
+        <td class="team-cell">${teamCell(s.B, s.bT, s.bDiv, s.subB)}</td>
         <td class="rt spread-cell num">${s.spread}</td>`;
       attachTip(tr, s);
       tb.appendChild(tr);
@@ -484,7 +494,8 @@
       tip.innerHTML =
         `<div class="r"><span class="n">A · ${fulls(s.A)}</span><b class="num">${s.aT}</b></div>` +
         `<div class="r"><span class="n">B · ${fulls(s.B)}</span><b class="num">${s.bT}</b></div>` +
-        `<div class="r"><span class="n">Subs</span><b>${subLabel(s)}</b></div>` +
+        `<div class="r"><span class="n">Team A sub</span><b>${subName(s.subA)}</b></div>` +
+        `<div class="r"><span class="n">Team B sub</span><b>${subName(s.subB)}</b></div>` +
         `<div class="r"><span class="n">Matchup</span><b>${REL[s.relation]}</b></div>`;
       tip.style.opacity = "1"; move(e);
     };
