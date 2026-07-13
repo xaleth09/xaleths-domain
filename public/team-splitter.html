@@ -139,6 +139,10 @@
   .team-cell .subline { margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
   .team-cell .subline .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); border: 1px solid var(--line-strong); border-radius: 5px; padding: 0 5px; margin-left: 3px; }
   .team-cell .subline.none { color: var(--ink-3); font-weight: 500; font-style: italic; }
+  .team-cell .subline.pinned { color: var(--ink); }
+  .pn.pin1, .pn.pin2 { font-weight: 800; border-radius: 4px; padding: 0 4px; }
+  .pn.pin1 { color: var(--good); background: var(--good-soft); }
+  .pn.pin2 { color: var(--gold); background: var(--gold-soft); }
   .spread-cell { font-weight: 800; }
   .rank { color: var(--ink-3); width: 1%; }
 
@@ -286,7 +290,7 @@
     { full: "Sammy Ericson",     last: "Ericson", loc: "San Jose, CA",      rating: 268 },
     { full: "Kay Umeda",        last: "Umeda",   loc: "San Jose, CA",      rating: 472 },
     { full: "Robbi Garza",      last: "Garza",   loc: "San Jose, CA",      rating: 601 },
-    { full: "Daniel Ayotte",    last: "Ayotte",  loc: "Milpitas, CA",      rating: 539 },
+    { full: "Dan Ayotte",       last: "Ayotte",  loc: "Milpitas, CA",      rating: 539 },
     { full: "Anson Nguyen",     last: "Nguyen",  loc: "Milpitas, CA",      rating: 460 },
     { full: "Camden Santo",     last: "Santo",   loc: "Mountain View, CA", rating: 415 },
   ];
@@ -449,11 +453,13 @@
     const m = MATCHUP[s.relation];
     return `<span class="matchup ${m.cls}"><span class="ic">${m.ic}</span>${m.lead}</span><div class="matchup-cap">${m.cap}</div>`;
   }
+  const pinClass = id => state.team1.has(id) ? "pin1" : state.team2.has(id) ? "pin2" : "";
+  const pn = id => `<span class="pn ${pinClass(id)}">${PLAYERS[id].first}</span>`;
   function teamCell(team, total, div, subId) {
-    return `<div class="names">${names(team)}</div>`
+    return `<div class="names">${team.map(pn).join(", ")}</div>`
       + `<div class="meta"><span class="tot num">${total}</span>${pill(div)}</div>`
       + (subId != null
-          ? `<div class="subline">+ ${PLAYERS[subId].first} <span class="tag">sub</span></div>`
+          ? `<div class="subline${pinClass(subId) ? " pinned" : ""}">+ ${pn(subId)} <span class="tag">sub</span></div>`
           : `<div class="subline none">no sub</div>`);
   }
 
