@@ -184,6 +184,7 @@
   .bar-track { flex: 1; height: 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; min-width: 60px; max-width: 200px; }
   .bar-fill { height: 100%; border-radius: 999px; background: var(--silver); }
   .val { font-weight: 700; min-width: 4ch; text-align: right; }
+  .fargo { font-weight: 800; font-size: 15px; color: var(--ink); }
   .initial { display: inline-flex; align-items: center; justify-content: center; width: 25px; height: 25px; border-radius: 8px; font-size: 12px; font-weight: 800; color: #fff; margin-right: 10px; vertical-align: middle; }
   .loc { color: var(--ink-2); }
   .ptag { font-size: 10px; font-weight: 800; letter-spacing: .04em; border-radius: 5px; padding: 1px 5px; margin-left: 8px; vertical-align: middle; }
@@ -235,7 +236,7 @@
         <div class="sec-head"><h2>Player ratings</h2><p>Core-roster rating for each player.</p></div>
         <div class="card"><div class="tscroll">
           <table id="ptable">
-            <thead><tr><th>Player</th><th>Location</th><th class="rt">Rating</th></tr></thead>
+            <thead><tr><th>Player</th><th>Location</th><th class="rt">Fargo</th></tr></thead>
             <tbody></tbody>
           </table>
         </div></div>
@@ -554,7 +555,7 @@
       tr.innerHTML = `
         <td><span class="initial" style="background:${IDENT[p.id]}">${p.first[0]}</span><b>${p.full}</b>${tag}</td>
         <td class="loc">${p.loc}</td>
-        <td class="rt val num">${p.rating}</td>`;
+        <td class="rt"><span class="fargo num">${p.rating}</span></td>`;
       tb.appendChild(tr);
     });
   }
