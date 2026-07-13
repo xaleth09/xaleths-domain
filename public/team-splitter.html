@@ -41,11 +41,13 @@
   .page { background: var(--bg); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; min-height: 100vh; padding: clamp(20px,4vw,52px) clamp(16px,4vw,40px) 80px; -webkit-font-smoothing: antialiased; }
   .wrap { max-width: 1340px; margin: 0 auto; }
 
-  /* player table on top, then splits table (left) + floating context sidebar (right) */
-  .split-layout { display: grid; grid-template-columns: 1fr 340px; gap: 22px; align-items: start; margin-top: clamp(28px, 4vw, 44px); }
-  .split-layout .splits { grid-column: 1; grid-row: 1; min-width: 0; }
-  .split-layout .splits .sec-head { margin-top: 0; }
-  .sidebar { grid-column: 2; grid-row: 1; position: sticky; top: 16px; display: flex; flex-direction: column; gap: 18px; }
+  /* left context sidebar (sticky, own scroll) + right column: player table over splits table */
+  .split-layout { display: grid; grid-template-columns: 340px 1fr; gap: 22px; align-items: start; margin-top: clamp(28px, 4vw, 44px); }
+  .right-col { grid-column: 2; grid-row: 1; min-width: 0; display: flex; flex-direction: column; gap: clamp(22px, 3vw, 34px); }
+  .right-col section { margin-top: 0; }
+  .right-col .sec-head { margin-top: 0; }
+  .players-top .card { max-width: 560px; }
+  .sidebar { grid-column: 1; grid-row: 1; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding-right: 4px; }
   .sidebar .lede { font-size: 14px; max-width: none; }
   .sidebar .rules { margin-top: 0; }
   .sidebar .stats { margin-top: 0; }
@@ -56,7 +58,7 @@
   .sidebar .rec .vs { font-size: 10px; color: var(--ink-3); align-self: flex-start; }
   @media (max-width: 980px) {
     .split-layout { grid-template-columns: 1fr; }
-    .split-layout .splits, .sidebar { grid-column: auto; grid-row: auto; position: static; }
+    .right-col, .sidebar { grid-column: auto; grid-row: auto; position: static; max-height: none; overflow: visible; }
   }
   .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
@@ -211,16 +213,6 @@
       <h1>Team Splitter</h1>
     </header>
 
-    <section class="players-top">
-      <div class="sec-head"><h2>Player ratings</h2><p>Core-roster rating for each player.</p></div>
-      <div class="card"><div class="tscroll">
-        <table id="ptable" style="min-width:560px">
-          <thead><tr><th>Player</th><th>Location</th><th class="rt">Rating</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div></div>
-    </section>
-
     <div class="split-layout">
       <aside class="sidebar">
         <p class="lede">Every way to field <b>two teams of three core players</b> from the pool, with everyone left over as a <b>sub</b>. Only the core roster counts toward the division cap, so subs are rating-free. The aim: keep <b>both teams in Gold or Silver</b> (never Platinum) and, ideally, in <b>different divisions</b> so your two teams are never drawn against each other.</p>
@@ -237,6 +229,17 @@
         <p class="sb-note">The most balanced split for each strategy, under the current settings.</p>
         <div class="recs" id="recs"></div>
       </aside>
+
+      <div class="right-col">
+      <section class="players-top">
+        <div class="sec-head"><h2>Player ratings</h2><p>Core-roster rating for each player.</p></div>
+        <div class="card"><div class="tscroll">
+          <table id="ptable">
+            <thead><tr><th>Player</th><th>Location</th><th class="rt">Rating</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div></div>
+      </section>
 
       <section class="splits">
       <div class="sec-head">
@@ -299,6 +302,7 @@
         </div>
       </div>
       </section>
+      </div>
     </div>
 
     <footer>
@@ -541,10 +545,8 @@
 
   // ---------- players table ----------
   function renderPlayers() {
-    const R_MAX = Math.max(...PLAYERS.map(p => p.rating)), R_MIN = Math.min(...PLAYERS.map(p => p.rating));
     const tb = $("#ptable tbody"); tb.innerHTML = "";
     [...PLAYERS].sort((a, b) => b.rating - a.rating).forEach(p => {
-      const w = (p.rating - R_MIN) / (R_MAX - R_MIN || 1) * 100;
       let tag = "";
       if (p.id === GARZA || p.id === NGO) tag = `<span class="ptag apart">KEEP APART</span>`;
       if (p.id === KAY && !state.kayIn) tag = `<span class="ptag out">SITTING OUT</span>`;
@@ -552,7 +554,7 @@
       tr.innerHTML = `
         <td><span class="initial" style="background:${IDENT[p.id]}">${p.first[0]}</span><b>${p.full}</b>${tag}</td>
         <td class="loc">${p.loc}</td>
-        <td class="rt"><div class="cell-bar" style="justify-content:flex-end"><span class="bar-track"><span class="bar-fill" style="width:${Math.max(6, w)}%"></span></span><span class="val num">${p.rating}</span></div></td>`;
+        <td class="rt val num">${p.rating}</td>`;
       tb.appendChild(tr);
     });
   }
