@@ -112,6 +112,12 @@
   .chip .swatch { width: 15px; height: 15px; border-radius: 5px; flex: none; }
   .chip.active { border-color: var(--good); background: var(--good-soft); color: var(--good); }
   .chip.active .swatch { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px currentColor; }
+  #team2Chips .chip.active { border-color: var(--gold); background: var(--gold-soft); color: var(--gold); }
+  .teamsel { display: flex; flex-direction: column; gap: 8px; }
+  .tsrow { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .tslabel { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 6px 9px; border-radius: 7px; flex: none; }
+  .tslabel.one { color: var(--good); background: var(--good-soft); }
+  .tslabel.two { color: var(--gold); background: var(--gold-soft); }
   .chip-clear { border: 0; background: none; color: var(--ink-3); font-weight: 700; font-size: 12px; cursor: pointer; text-decoration: underline; padding: 6px 4px; font-family: var(--font-ui); }
   .chip-clear:disabled { opacity: .4; cursor: default; text-decoration: none; }
 
@@ -199,8 +205,11 @@
       <div class="card">
         <div class="controls">
           <div class="ctl-block">
-            <span class="lbl">Show only splits with these players <span class="muted">on the same team</span> <span class="muted">— core or sub, pick any number</span></span>
-            <div class="chips" id="wantChips"></div>
+            <span class="lbl">Pin players to a side <span class="muted">— fill one side for “same team”, or both to set who plays with whom (core or sub)</span></span>
+            <div class="teamsel">
+              <div class="tsrow"><span class="tslabel one">Team 1</span><div class="chips" id="team1Chips"></div></div>
+              <div class="tsrow"><span class="tslabel two">Team 2</span><div class="chips" id="team2Chips"></div></div>
+            </div>
           </div>
           <div class="ctl-row">
             <div class="ctl-block">
@@ -235,9 +244,9 @@
             <thead>
               <tr>
                 <th class="rank">#</th>
-                <th>Team A</th>
+                <th id="thTeamA">Team A</th>
                 <th class="ctr">Matchup</th>
-                <th>Team B</th>
+                <th id="thTeamB">Team B</th>
                 <th class="rt">Spread</th>
               </tr>
             </thead>
@@ -288,7 +297,7 @@
   const SILVER_CAP = 1500, GOLD_CAP = 1650;
 
   // ---------- state ----------
-  const state = { show: "all", sort: "balance", want: new Set(), keepApart: true, kayIn: true };
+  const state = { show: "all", sort: "balance", team1: new Set(), team2: new Set(), keepApart: true, kayIn: true };
 
   const $ = s => document.querySelector(s);
   const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
@@ -347,10 +356,19 @@
     if (state.show === "gold") return base.filter(s => s.bothGold);
     return base;
   }
-  function matchWant(s) {
-    if (state.want.size === 0) return true;
-    const want = [...state.want];
-    return want.every(i => s.rosterA.has(i)) || want.every(i => s.rosterB.has(i));
+  // symmetric: Team-1 group on one roster AND Team-2 group on the other (order of A/B irrelevant)
+  function matchTeams(s) {
+    const t1 = [...state.team1], t2 = [...state.team2];
+    if (!t1.length && !t2.length) return true;
+    const a1 = t1.every(i => s.rosterA.has(i)), b1 = t1.every(i => s.rosterB.has(i));
+    const a2 = t2.every(i => s.rosterA.has(i)), b2 = t2.every(i => s.rosterB.has(i));
+    return (a1 && b2) || (b1 && a2);
+  }
+  // when pinning, show the Team-1 group on the left; otherwise higher-total team (A) on the left
+  function leftIsA(s) {
+    if (state.team1.size) return [...state.team1].every(i => s.rosterA.has(i));
+    if (state.team2.size) return ![...state.team2].every(i => s.rosterA.has(i));
+    return true;
   }
 
   // ---------- stats ----------
@@ -398,21 +416,27 @@
     if (!diff && !silver && P.length) wrap.appendChild(recCard({ flag: "Most balanced", why: "The most balanced split under the current rules.", split: [...P].sort(byBalance)[0] }));
   }
 
-  // ---------- "same team" multi-select chips ----------
+  // ---------- team-1 / team-2 pickers (a player can be pinned to at most one side) ----------
   function renderChips() {
-    const wrap = $("#wantChips"); wrap.innerHTML = "";
-    activeIds().forEach(id => {
-      const p = PLAYERS[id];
-      const b = el("button", "chip" + (state.want.has(id) ? " active" : ""));
-      b.setAttribute("aria-pressed", String(state.want.has(id)));
-      b.innerHTML = `<span class="swatch" style="background:${IDENT[id]}"></span>${p.first}`;
-      b.addEventListener("click", () => { state.want.has(id) ? state.want.delete(id) : state.want.add(id); renderChips(); renderTable(); });
-      wrap.appendChild(b);
+    [["#team1Chips", state.team1, state.team2], ["#team2Chips", state.team2, state.team1]].forEach(([sel, mine, other]) => {
+      const wrap = $(sel); wrap.innerHTML = "";
+      activeIds().forEach(id => {
+        const p = PLAYERS[id];
+        const b = el("button", "chip" + (mine.has(id) ? " active" : ""));
+        b.setAttribute("aria-pressed", String(mine.has(id)));
+        b.innerHTML = `<span class="swatch" style="background:${IDENT[id]}"></span>${p.first}`;
+        b.addEventListener("click", () => {
+          if (mine.has(id)) mine.delete(id);
+          else { mine.add(id); other.delete(id); }   // pinning to one side clears the other
+          renderChips(); renderTable();
+        });
+        wrap.appendChild(b);
+      });
+      const clear = el("button", "chip-clear", "Clear");
+      clear.disabled = mine.size === 0;
+      clear.addEventListener("click", () => { mine.clear(); renderChips(); renderTable(); });
+      wrap.appendChild(clear);
     });
-    const clear = el("button", "chip-clear", "Clear");
-    clear.disabled = state.want.size === 0;
-    clear.addEventListener("click", () => { state.want.clear(); renderChips(); renderTable(); });
-    wrap.appendChild(clear);
   }
 
   // ---------- matchup badge: will the two teams meet? ----------
@@ -435,7 +459,7 @@
 
   // ---------- table ----------
   function currentList() {
-    let list = poolByShow(pool()).filter(matchWant);
+    let list = poolByShow(pool()).filter(matchTeams);
     list.sort((a, b) => {
       if (state.sort === "cheapest") {
         const rank = s => s.bothSilver ? 0 : (s.different ? 1 : 2);
@@ -451,20 +475,23 @@
     $("#empty").hidden = list.length > 0;
     list.forEach((s, idx) => {
       const tr = el("tr" + (idx === 0 ? "" : ""), idx === 0 ? "top" : "");
+      const la = leftIsA(s);
+      const L = la ? [s.A, s.aT, s.aDiv, s.subA] : [s.B, s.bT, s.bDiv, s.subB];
+      const R = la ? [s.B, s.bT, s.bDiv, s.subB] : [s.A, s.aT, s.aDiv, s.subA];
       tr.innerHTML = `
         <td class="rank num">${idx + 1}</td>
-        <td class="team-cell">${teamCell(s.A, s.aT, s.aDiv, s.subA)}</td>
+        <td class="team-cell">${teamCell(...L)}</td>
         <td class="ctr">${matchupHTML(s)}</td>
-        <td class="team-cell">${teamCell(s.B, s.bT, s.bDiv, s.subB)}</td>
+        <td class="team-cell">${teamCell(...R)}</td>
         <td class="rt spread-cell num">${s.spread}</td>`;
       attachTip(tr, s);
       tb.appendChild(tr);
     });
     const P = pool();
-    const filtered = poolByShow(P).filter(matchWant).length;
-    $("#count").innerHTML = state.want.size
-      ? `<b>${filtered}</b> split${filtered === 1 ? "" : "s"} with ${[...state.want].map(i => PLAYERS[i].first).join(", ")} together`
-      : `<b>${list.length}</b> split${list.length === 1 ? "" : "s"} shown`;
+    const pinned = state.team1.size || state.team2.size;
+    $("#thTeamA").textContent = pinned ? "Team 1" : "Team A";
+    $("#thTeamB").textContent = pinned ? "Team 2" : "Team B";
+    $("#count").innerHTML = `<b>${list.length}</b> split${list.length === 1 ? "" : "s"} shown`;
     $("#validNote").textContent =
       `${P.length} valid under all rules · ${P.filter(s => s.different).length} put the teams in different divisions (won't meet) · ${P.filter(s => s.bothSilver).length} keep both in Silver`;
   }
@@ -524,7 +551,7 @@
   $("#apartToggle").addEventListener("change", e => { state.keepApart = e.target.checked; renderStats(); renderRecs(); renderTable(); });
   $("#kayToggle").addEventListener("change", e => {
     state.kayIn = e.target.checked;
-    if (!state.kayIn) state.want.delete(KAY);
+    if (!state.kayIn) { state.team1.delete(KAY); state.team2.delete(KAY); }
     rebuild(); renderStats(); renderRecs(); renderChips(); renderPlayers(); renderTable();
   });
 
