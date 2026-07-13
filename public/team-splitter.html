@@ -140,6 +140,8 @@
   .team-cell .subline .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); border: 1px solid var(--line-strong); border-radius: 5px; padding: 0 5px; margin-left: 3px; }
   .team-cell .subline.none { color: var(--ink-3); font-weight: 500; font-style: italic; }
   .team-cell .subline.pinned { color: var(--ink); }
+  .team-cell .margins { margin-top: 5px; display: flex; flex-direction: column; gap: 1px; }
+  .team-cell .mg { font-size: 11px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
   .pn.pin1, .pn.pin2 { font-weight: 800; border-radius: 4px; padding: 0 4px; }
   .pn.pin1 { color: var(--good); background: var(--good-soft); }
   .pn.pin2 { color: var(--gold); background: var(--gold-soft); }
@@ -251,7 +253,6 @@
                 <th id="thTeamA">Team A</th>
                 <th class="ctr">Matchup</th>
                 <th id="thTeamB">Team B</th>
-                <th class="rt">Spread</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -405,7 +406,7 @@
         <div class="vs">VS</div>
         <div class="team"><div class="tt">Team B</div><div class="names">${names(split.B)}</div><div class="tot"><span class="bignum num">${split.bT}</span>${pill(split.bDiv)}</div></div>
       </div>
-      <div class="foot"><span>Subs — Team A: <b>${subName(split.subA)}</b> · Team B: <b>${subName(split.subB)}</b></span><span>Spread: <b class="num">${split.spread}</b></span></div>`;
+      <div class="foot"><span>Subs — Team A: <b>${subName(split.subA)}</b> · Team B: <b>${subName(split.subB)}</b></span><span>Rating gap: <b class="num">${split.spread}</b></span></div>`;
     return c;
   }
   function renderRecs() {
@@ -455,9 +456,16 @@
   }
   const pinClass = id => state.team1.has(id) ? "pin1" : state.team2.has(id) ? "pin2" : "";
   const pn = id => `<span class="pn ${pinClass(id)}">${PLAYERS[id].first}</span>`;
+  // how far the team sits from its division boundaries (headroom to the cap, cushion above the drop)
+  function marginText(total, div) {
+    return div === "silver"
+      ? `<span class="mg cap">${SILVER_CAP - total} below Silver max</span>`
+      : `<span class="mg cap">${GOLD_CAP - total} below Gold max</span><span class="mg floor">${total - SILVER_CAP} above Silver max</span>`;
+  }
   function teamCell(team, total, div, subId) {
     return `<div class="names">${team.map(pn).join(", ")}</div>`
       + `<div class="meta"><span class="tot num">${total}</span>${pill(div)}</div>`
+      + `<div class="margins">${marginText(total, div)}</div>`
       + (subId != null
           ? `<div class="subline${pinClass(subId) ? " pinned" : ""}">+ ${pn(subId)} <span class="tag">sub</span></div>`
           : `<div class="subline none">no sub</div>`);
@@ -488,8 +496,7 @@
         <td class="rank num">${idx + 1}</td>
         <td class="team-cell">${teamCell(...L)}</td>
         <td class="ctr">${matchupHTML(s)}</td>
-        <td class="team-cell">${teamCell(...R)}</td>
-        <td class="rt spread-cell num">${s.spread}</td>`;
+        <td class="team-cell">${teamCell(...R)}</td>`;
       attachTip(tr, s);
       tb.appendChild(tr);
     });
