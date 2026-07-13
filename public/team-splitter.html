@@ -113,6 +113,10 @@
   .chip.active { border-color: var(--good); background: var(--good-soft); color: var(--good); }
   .chip.active .swatch { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px currentColor; }
   #team2Chips .chip.active { border-color: var(--gold); background: var(--gold-soft); color: var(--gold); }
+  .lbl-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .clear-both { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2); border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-ui); flex: none; }
+  .clear-both:hover:not(:disabled) { border-color: var(--ink-3); color: var(--ink); }
+  .clear-both:disabled { opacity: .4; cursor: default; }
   .teamsel { display: flex; flex-direction: column; gap: 8px; }
   .tsrow { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
   .tslabel { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 6px 9px; border-radius: 7px; flex: none; }
@@ -211,7 +215,10 @@
       <div class="card">
         <div class="controls">
           <div class="ctl-block">
-            <span class="lbl">Pin players to a side <span class="muted">— fill one side for “same team”, or both to set who plays with whom (core or sub)</span></span>
+            <div class="lbl-row">
+              <span class="lbl">Pin players to a side <span class="muted">— fill one side for “same team”, or both to set who plays with whom (core or sub)</span></span>
+              <button class="clear-both" id="clearBoth" disabled>Clear both</button>
+            </div>
             <div class="teamsel">
               <div class="tsrow"><span class="tslabel one">Team 1</span><div class="chips" id="team1Chips"></div></div>
               <div class="tsrow"><span class="tslabel two">Team 2</span><div class="chips" id="team2Chips"></div></div>
@@ -442,6 +449,7 @@
       clear.addEventListener("click", () => { mine.clear(); renderChips(); renderTable(); });
       wrap.appendChild(clear);
     });
+    $("#clearBoth").disabled = state.team1.size === 0 && state.team2.size === 0;
   }
 
   // ---------- matchup badge: will the two teams meet? ----------
@@ -561,6 +569,7 @@
     });
   }
   segWire("#showSeg", "show"); segWire("#sortSeg", "sort");
+  $("#clearBoth").addEventListener("click", () => { state.team1.clear(); state.team2.clear(); renderChips(); renderTable(); });
   $("#apartToggle").addEventListener("change", e => { state.keepApart = e.target.checked; renderStats(); renderRecs(); renderTable(); });
   $("#kayToggle").addEventListener("change", e => {
     state.kayIn = e.target.checked;
