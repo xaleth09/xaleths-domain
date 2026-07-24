@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Napa Valley Winery Comparison</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#160a10;
+    --surface:#20111a;
+    --surface2:#2b1723;
+    --burgundy:#7a1f3d;
+    --burgundy-lt:#a83355;
+    --gold:#d4a24e;
+    --gold-lt:#f0c574;
+    --white:#f7eef0;
+    --sec:#c9a9b4;
+    --muted:#5a3a48;
+    --line:rgba(212,162,78,0.16);
+    --line2:rgba(212,162,78,0.38);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{
+    background:var(--bg);color:var(--white);
+    font-family:"DM Mono",monospace;-webkit-font-smoothing:antialiased;
+  }
+  body{
+    background:radial-gradient(130% 90% at 50% 0%, #2a1019 0%, var(--bg) 58%);
+    min-height:100vh;padding:44px 22px 72px;line-height:1.6;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  /* ---- header ---- */
+  header{margin-bottom:40px;border-bottom:1px solid var(--line);padding-bottom:26px}
+  .kicker{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold)}
+  h1{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:34px;
+    letter-spacing:.01em;color:var(--white);margin:12px 0 12px;line-height:1.08}
+  .sub{font-size:13.5px;color:var(--sec);max-width:66ch}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+  .chip{font-size:11px;letter-spacing:.08em;color:var(--gold-lt);
+    border:1px solid var(--line2);border-radius:100px;padding:6px 14px;
+    background:rgba(212,162,78,0.05)}
+  .chip.budget{color:var(--white);border-color:var(--burgundy-lt);
+    background:rgba(168,51,85,0.16)}
+
+  /* ---- section ---- */
+  section{margin-top:52px}
+  h2{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:13px;
+    letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:22px;
+    display:flex;align-items:center;gap:12px}
+  h2::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  /* ---- cards ---- */
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+  @media(max-width:720px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.35);
+    display:flex;flex-direction:column;transition:border-color .2s, transform .2s}
+  .card:hover{border-color:var(--line2);transform:translateY(-3px)}
+
+  /* image placeholder block */
+  .photo{height:186px;position:relative;display:flex;align-items:flex-end;
+    padding:16px;overflow:hidden}
+  .photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+    z-index:0;display:block}
+  .photo::after{content:"";position:absolute;inset:0;z-index:1;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 22%, rgba(10,4,7,0.82) 100%)}
+  .photo .initial{position:absolute;top:12px;right:18px;z-index:2;
+    font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:46px;
+    color:rgba(247,238,240,0.28);letter-spacing:.02em;
+    text-shadow:0 2px 12px rgba(0,0,0,0.5)}
+  .photo .vibe{position:relative;z-index:2;font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--gold-lt);line-height:1.4;
+    text-shadow:0 1px 8px rgba(0,0,0,0.7)}
+  .p-hall{background:linear-gradient(135deg,#3a1424 0%,#6b2038 50%,#25101a 100%)}
+  .p-peju{background:linear-gradient(135deg,#2c1a10 0%,#7a4a1e 55%,#1c1109 100%)}
+  .p-stags{background:linear-gradient(135deg,#101a24 0%,#2c4a5e 55%,#0c1219 100%)}
+  .p-duck{background:linear-gradient(135deg,#241628 0%,#4a2c54 55%,#140c17 100%)}
+
+  .body{padding:20px;display:flex;flex-direction:column;gap:14px;flex:1}
+  .cardtop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .name{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:17px;
+    color:var(--white);line-height:1.2}
+  .region{font-size:11px;color:var(--muted);letter-spacing:.06em;margin-top:4px}
+  .pricetag{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:20px;
+    color:var(--gold-lt);white-space:nowrap}
+  .pricetag span{display:block;font-family:"DM Mono",monospace;font-weight:400;
+    font-size:9.5px;letter-spacing:.12em;color:var(--muted);text-align:right;
+    text-transform:uppercase}
+  .focus{font-size:12.5px;color:var(--sec);line-height:1.55}
+  .highlights{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:2px}
+  .highlights li{font-size:12px;color:var(--sec);padding-left:18px;position:relative;line-height:1.5}
+  .highlights li::before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;
+    border-radius:50%;background:var(--gold)}
+  .tip{margin-top:auto;font-size:11.5px;color:var(--gold-lt);
+    border-top:1px solid var(--line);padding-top:12px;line-height:1.5}
+  .tip b{color:var(--white);font-weight:500}
+
+  /* ---- matrix table ---- */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;
+    background:var(--surface);box-shadow:0 0 24px rgba(0,0,0,0.25)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:720px}
+  thead th{text-align:left;font-family:"Space Grotesk",sans-serif;font-weight:600;
+    font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);
+    padding:14px 16px;border-bottom:1px solid var(--line2);white-space:nowrap;
+    cursor:pointer;user-select:none;transition:color .15s}
+  thead th:hover{color:var(--gold-lt)}
+  thead th .arrow{opacity:.4;font-size:9px;margin-left:5px}
+  thead th.sorted .arrow{opacity:1;color:var(--gold-lt)}
+  tbody td{padding:14px 16px;border-bottom:1px solid rgba(212,162,78,0.08);
+    color:var(--sec);vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--surface2)}
+  .brand{color:var(--white);font-weight:500;white-space:nowrap}
+  .price{color:var(--gold-lt);white-space:nowrap;font-weight:500}
+  .note{font-size:12px;color:var(--muted);margin-top:14px;letter-spacing:.02em}
+
+  footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;
+    font-size:11px;color:var(--muted);letter-spacing:.04em;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">Napa Valley · Tasting Day Planner</div>
+    <h1>Four Estates, One Afternoon</h1>
+    <p class="sub">A visual shortlist of grand, Cabernet-forward Napa estates for tomorrow's visit — architectural scale and bold reds, every tasting fee held under budget. Sort the matrix, weigh the vibe, pick your estate.</p>
+    <div class="meta">
+      <span class="chip budget">Budget cap · under $125 / person</span>
+      <span class="chip">All 4 within budget</span>
+      <span class="chip">Focus · Bold Cabernet</span>
+    </div>
+  </header>
+
+  <!-- ============ CARDS ============ -->
+  <section>
+    <h2>The Shortlist</h2>
+    <div class="cards">
+
+      <!-- HALL -->
+      <div class="card">
+        <div class="photo p-hall">
+          <img src="https://hallwines.com/cdn/shop/files/hall_member_patio_explore.webp?v=1779218604&width=1600" alt="HALL St. Helena estate patio and vineyard" loading="lazy" referrerpolicy="no-referrer">
+          <span class="initial">H</span>
+          <span class="vibe">Modern luxury<br>· fine-art collection</span>
+        </div>
+        <div class="body">
+          <div class="cardtop">
+            <div>
+              <div class="name">HALL St. Helena</div>
+              <div class="region">St. Helena, Napa Valley</div>
+            </div>
+            <div class="pricetag">$45<span>per person</span></div>
+          </div>
+          <div class="focus">Bold, deep, structured Cabernets in a high-design setting — floor-to-ceiling vineyard views and a museum-grade contemporary art collection.</div>
+          <ul class="highlights">
+            <li>Cutting-edge architecture &amp; art installations</li>
+            <li>Floor-to-ceiling vineyard views</li>
+            <li>Lowest entry fee of the four</li>
+          </ul>
+          <div class="tip"><b>Planning:</b> Walk-ins welcome; booking avoids wait times.</div>
+        </div>
+      </div>
+
+      <!-- PEJU -->
+      <div class="card">
+        <div class="photo p-peju">
+          <img src="https://www.peju.com/wp-content/uploads/2025/07/Peju_WGM_7.2025-12.jpg" alt="PEJU Winery estate" loading="lazy" referrerpolicy="no-referrer">
+          <span class="initial">P</span>
+          <span class="vibe">Manicured towers<br>· garden grounds</span>
+        </div>
+        <div class="body">
+          <div class="cardtop">
+            <div>
+              <div class="name">PEJU Winery</div>
+              <div class="region">Rutherford, Napa Valley</div>
+            </div>
+            <div class="pricetag">$65<span>per person</span></div>
+          </div>
+          <div class="focus">Rich red blends and Rutherford Cabernets served amid elegant, manicured grounds with the winery's iconic tower and garden art.</div>
+          <ul class="highlights">
+            <li>Iconic tower architecture</li>
+            <li>Elegant, manicured garden grounds</li>
+            <li>Rutherford-bench Cabernet character</li>
+          </ul>
+          <div class="tip"><b>Planning:</b> Walk-ins accommodated if space allows.</div>
+        </div>
+      </div>
+
+      <!-- STAG'S LEAP -->
+      <div class="card">
+        <div class="photo p-stags">
+          <img src="https://www.stagsleapwinecellars.com/wp-content/uploads/2024/09/Tasting-Room-View-Sm.jpg" alt="Stag's Leap Wine Cellars glass tasting room overlooking vineyards" loading="lazy" referrerpolicy="no-referrer">
+          <span class="initial">S</span>
+          <span class="vibe">Glass-walled pavilion<br>· valley views</span>
+        </div>
+        <div class="body">
+          <div class="cardtop">
+            <div>
+              <div class="name">Stag's Leap Wine Cellars</div>
+              <div class="region">Silverado Trail, Napa Valley</div>
+            </div>
+            <div class="pricetag">$95<span>per person</span></div>
+          </div>
+          <div class="focus">World-famous estate Cabernets from the FAY and S.L.V. vineyards, poured in a sleek, contemporary glass-walled pavilion over rolling valley vineyards.</div>
+          <ul class="highlights">
+            <li>Historic, world-renowned estate Cabs</li>
+            <li>Ultra-modern glass pavilion</li>
+            <li>The prestige pick of the group</li>
+          </ul>
+          <div class="tip"><b>Planning:</b> Reservations required well in advance.</div>
+        </div>
+      </div>
+
+      <!-- DUCKHORN / PARADUXX -->
+      <div class="card">
+        <div class="photo p-duck">
+          <img src="https://www.theduckhorncollection.com/cdn/shop/files/2025-11-03_TDC_SHOOT-5113.webp?v=1780452184&width=1600" alt="The Duckhorn Collection at Paraduxx tasting terrace" loading="lazy" referrerpolicy="no-referrer">
+          <span class="initial">D</span>
+          <span class="vibe">Vineyard terrace<br>· relaxed &amp; upscale</span>
+        </div>
+        <div class="body">
+          <div class="cardtop">
+            <div>
+              <div class="name">Duckhorn · Paraduxx</div>
+              <div class="region">Yountville, Napa Valley</div>
+            </div>
+            <div class="pricetag">$50<span>per person</span></div>
+          </div>
+          <div class="focus">Iconic Napa Merlots and robust red blends in a contemporary, relaxed-upscale vineyard terrace setting.</div>
+          <ul class="highlights">
+            <li>Contemporary vineyard terrace</li>
+            <li>Upscale but relaxed atmosphere</li>
+            <li>2-for-1 options via regional wine passes</li>
+          </ul>
+          <div class="tip"><b>Planning:</b> Great value — check regional wine passes for 2-for-1.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ MATRIX ============ -->
+  <section>
+    <h2>Comparison Matrix</h2>
+    <div class="tablewrap">
+      <table id="matrix">
+        <thead>
+          <tr>
+            <th data-key="name" data-type="text">Winery <span class="arrow">▲▼</span></th>
+            <th data-key="price" data-type="num" class="sorted">Entry <span class="arrow">▲</span></th>
+            <th data-key="focus" data-type="text">Primary Wine Focus <span class="arrow">▲▼</span></th>
+            <th data-key="vibe" data-type="text">Architectural Vibe <span class="arrow">▲▼</span></th>
+            <th data-key="tip" data-type="text">Planning Note <span class="arrow">▲▼</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="brand">HALL St. Helena</td>
+            <td class="price" data-val="45">$45</td>
+            <td>Bold, deep, structured Cabernets</td>
+            <td>Modern luxury, high-end fine-art collection</td>
+            <td>Walk-ins welcome; booking avoids wait times</td>
+          </tr>
+          <tr>
+            <td class="brand">PEJU Winery</td>
+            <td class="price" data-val="65">$65</td>
+            <td>Rich red blends &amp; Rutherford Cabernets</td>
+            <td>Elegant manicured towers &amp; garden grounds</td>
+            <td>Walk-ins accommodated if space allows</td>
+          </tr>
+          <tr>
+            <td class="brand">Stag's Leap Wine Cellars</td>
+            <td class="price" data-val="95">$95</td>
+            <td>World-famous estate Cabernets (FAY / S.L.V.)</td>
+            <td>Sleek, contemporary glass-walled pavilion</td>
+            <td>Reservations required well in advance</td>
+          </tr>
+          <tr>
+            <td class="brand">Duckhorn · Paraduxx</td>
+            <td class="price" data-val="50">$50</td>
+            <td>Iconic Napa Merlots &amp; robust red blends</td>
+            <td>Contemporary vineyard terrace setting</td>
+            <td>Great 2-for-1 options via regional wine passes</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Click any column header to sort. Prices are per-person tasting-entry fees — all four sit under the $125 cap.</p>
+  </section>
+
+  <footer>
+    Prices and policies reflect the research handoff and can shift seasonally — confirm the current tasting fee and reservation requirement with each estate before you go. Built for a one-day Napa plan.
+  </footer>
+
+</div>
+
+<script>
+  (function(){
+    var table = document.getElementById('matrix');
+    var tbody = table.querySelector('tbody');
+    var headers = table.querySelectorAll('thead th');
+    var state = { key: 'price', dir: 1 }; // default: price ascending
+
+    function cellValue(row, idx, type){
+      var cell = row.children[idx];
+      if(type === 'num'){
+        return parseFloat(cell.getAttribute('data-val')) || 0;
+      }
+      return cell.textContent.trim().toLowerCase();
+    }
+
+    function sortBy(idx, key, type){
+      state.dir = (state.key === key) ? -state.dir : 1;
+      state.key = key;
+      var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+      rows.sort(function(a,b){
+        var va = cellValue(a, idx, type), vb = cellValue(b, idx, type);
+        if(va < vb) return -1 * state.dir;
+        if(va > vb) return 1 * state.dir;
+        return 0;
+      });
+      rows.forEach(function(r){ tbody.appendChild(r); });
+      headers.forEach(function(h){
+        var arrow = h.querySelector('.arrow');
+        if(h.getAttribute('data-key') === key){
+          h.classList.add('sorted');
+          arrow.textContent = state.dir === 1 ? '▲' : '▼';
+        } else {
+          h.classList.remove('sorted');
+          arrow.textContent = '▲▼';
+        }
+      });
+    }
+
+    headers.forEach(function(h, idx){
+      h.addEventListener('click', function(){
+        sortBy(idx, h.getAttribute('data-key'), h.getAttribute('data-type'));
+      });
+    });
+  })();
+</script>
+</body>
+</html>

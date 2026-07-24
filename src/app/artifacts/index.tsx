@@ -45,6 +45,13 @@ const ARTIFACTS: Artifact[] = [
     url: '/fanime.html',
     tag: 'EVENT',
   },
+  {
+    id: 'napa-wineries',
+    title: 'Napa Valley Winery Comparison',
+    description: 'Tasting-day planner comparing four grand, Cabernet-forward Napa estates — HALL St. Helena, PEJU, Stag\'s Leap Wine Cellars, and Duckhorn\'s Paraduxx — all under a $125/person cap. Photo cards for each estate plus a click-to-sort comparison matrix of price, wine focus, architectural vibe, and planning notes.',
+    url: '/napa-wineries.html',
+    tag: 'GUIDE',
+  },
 ];
 
 export default function ArtifactsScreen() {
