@@ -63,9 +63,10 @@
 
   /* image placeholder block */
   .photo{height:186px;position:relative;display:flex;align-items:flex-end;
-    padding:16px;overflow:hidden}
+    padding:16px;overflow:hidden;cursor:pointer}
   .photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-    z-index:0;display:block}
+    z-index:0;display:block;transition:transform .45s ease}
+  .photo:hover img{transform:scale(1.055)}
   .photo::after{content:"";position:absolute;inset:0;z-index:1;
     background:linear-gradient(180deg, rgba(0,0,0,0) 22%, rgba(10,4,7,0.82) 100%)}
   .photo .initial{position:absolute;top:12px;right:18px;z-index:2;
@@ -98,6 +99,66 @@
   .tip{margin-top:auto;font-size:11.5px;color:var(--gold-lt);
     border-top:1px solid var(--line);padding-top:12px;line-height:1.5}
   .tip b{color:var(--white);font-weight:500}
+
+  /* gallery badge on cover */
+  .gallery-badge{position:absolute;top:12px;left:14px;z-index:2;
+    display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.1em;
+    color:var(--white);background:rgba(10,4,7,0.55);border:1px solid rgba(247,238,240,0.25);
+    border-radius:100px;padding:5px 11px;text-transform:uppercase;pointer-events:none}
+  .photo:hover .gallery-badge{border-color:var(--gold-lt);color:var(--gold-lt)}
+
+  /* card actions */
+  .actions{display:flex;flex-wrap:wrap;gap:10px}
+  .visit,.view-photos{display:inline-flex;align-items:center;gap:7px;
+    font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;border-radius:100px;
+    padding:8px 15px;cursor:pointer;transition:all .18s}
+  .visit{color:var(--gold-lt);text-decoration:none;border:1px solid var(--line2)}
+  .visit:hover{border-color:var(--gold-lt);background:rgba(212,162,78,0.1)}
+  .view-photos{color:var(--sec);background:none;border:1px solid var(--line)}
+  .view-photos:hover{border-color:var(--gold-lt);color:var(--gold-lt)}
+
+  /* table link */
+  .tlink{color:inherit;text-decoration:none;border-bottom:1px dotted var(--line2);
+    transition:color .15s,border-color .15s}
+  .tlink:hover{color:var(--gold-lt);border-color:var(--gold-lt)}
+
+  /* ---- lightbox modal ---- */
+  .lb{position:fixed;inset:0;z-index:100;display:none;
+    background:rgba(8,4,6,0.95);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .lb.open{display:flex;flex-direction:column}
+  .lb-top{display:flex;align-items:center;justify-content:space-between;
+    padding:18px 22px;gap:16px}
+  .lb-title{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:14px;
+    letter-spacing:.04em;color:var(--white)}
+  .lb-count{font-size:12px;color:var(--gold-lt);letter-spacing:.1em;margin-left:10px}
+  .lb-close{background:none;border:1px solid var(--line2);color:var(--white);
+    width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;transition:all .18s}
+  .lb-close:hover{border-color:var(--gold-lt);color:var(--gold-lt)}
+  .lb-stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;
+    padding:0 12px;min-height:0;overflow:hidden;touch-action:pan-y}
+  .lb-img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);user-select:none;-webkit-user-drag:none}
+  .lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(10,4,7,0.6);
+    border:1px solid var(--line2);color:var(--white);width:48px;height:48px;border-radius:50%;
+    font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;transition:all .18s;z-index:2}
+  .lb-nav:hover{border-color:var(--gold-lt);color:var(--gold-lt);background:rgba(10,4,7,0.9)}
+  .lb-prev{left:16px}
+  .lb-next{right:16px}
+  .lb-cap{text-align:center;font-size:12px;color:var(--sec);letter-spacing:.06em;
+    padding:14px 22px 6px}
+  .lb-thumbs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:8px 22px 24px}
+  .lb-thumb{width:64px;height:44px;object-fit:cover;border-radius:5px;cursor:pointer;
+    opacity:.4;border:2px solid transparent;transition:all .18s}
+  .lb-thumb:hover{opacity:.8}
+  .lb-thumb.active{opacity:1;border-color:var(--gold-lt)}
+  @media(max-width:600px){
+    .lb-nav{width:40px;height:40px;font-size:20px}
+    .lb-thumb{width:52px;height:36px}
+    .lb-title{font-size:12.5px}
+  }
 
   /* ---- matrix table ---- */
   .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;
@@ -143,8 +204,9 @@
 
       <!-- HALL -->
       <div class="card">
-        <div class="photo p-hall">
-          <img src="https://hallwines.com/cdn/shop/files/hall_member_patio_explore.webp?v=1779218604&width=1600" alt="HALL St. Helena estate patio and vineyard" loading="lazy" referrerpolicy="no-referrer">
+        <div class="photo p-hall" data-g="hall" role="button" tabindex="0" aria-label="Open HALL St. Helena photo gallery">
+          <img src="https://hallwines.com/cdn/shop/files/shvc_art_banner.webp?v=1780598225&width=1600" alt="HALL St. Helena sculpture garden and grounds" loading="lazy" referrerpolicy="no-referrer">
+          <span class="gallery-badge">⛶ 3 photos</span>
           <span class="initial">H</span>
           <span class="vibe">Modern luxury<br>· fine-art collection</span>
         </div>
@@ -163,13 +225,18 @@
             <li>Lowest entry fee of the four</li>
           </ul>
           <div class="tip"><b>Planning:</b> Walk-ins welcome; booking avoids wait times.</div>
+          <div class="actions">
+            <button class="view-photos" data-g="hall">⛶ View photos</button>
+            <a class="visit" href="https://www.hallwines.com" target="_blank" rel="noopener">Visit site →</a>
+          </div>
         </div>
       </div>
 
       <!-- PEJU -->
       <div class="card">
-        <div class="photo p-peju">
-          <img src="https://www.peju.com/wp-content/uploads/2025/07/Peju_WGM_7.2025-12.jpg" alt="PEJU Winery estate" loading="lazy" referrerpolicy="no-referrer">
+        <div class="photo p-peju" data-g="peju" role="button" tabindex="0" aria-label="Open PEJU Winery photo gallery">
+          <img src="https://www.peju.com/wp-content/uploads/2024/05/Drone-Shot-Full-scaled.webp" alt="PEJU Winery estate and tower from above" loading="lazy" referrerpolicy="no-referrer">
+          <span class="gallery-badge">⛶ 4 photos</span>
           <span class="initial">P</span>
           <span class="vibe">Manicured towers<br>· garden grounds</span>
         </div>
@@ -188,13 +255,18 @@
             <li>Rutherford-bench Cabernet character</li>
           </ul>
           <div class="tip"><b>Planning:</b> Walk-ins accommodated if space allows.</div>
+          <div class="actions">
+            <button class="view-photos" data-g="peju">⛶ View photos</button>
+            <a class="visit" href="https://www.peju.com" target="_blank" rel="noopener">Visit site →</a>
+          </div>
         </div>
       </div>
 
       <!-- STAG'S LEAP -->
       <div class="card">
-        <div class="photo p-stags">
+        <div class="photo p-stags" data-g="stags" role="button" tabindex="0" aria-label="Open Stag's Leap Wine Cellars photo gallery">
           <img src="https://www.stagsleapwinecellars.com/wp-content/uploads/2024/09/Tasting-Room-View-Sm.jpg" alt="Stag's Leap Wine Cellars glass tasting room overlooking vineyards" loading="lazy" referrerpolicy="no-referrer">
+          <span class="gallery-badge">⛶ 4 photos</span>
           <span class="initial">S</span>
           <span class="vibe">Glass-walled pavilion<br>· valley views</span>
         </div>
@@ -213,13 +285,18 @@
             <li>The prestige pick of the group</li>
           </ul>
           <div class="tip"><b>Planning:</b> Reservations required well in advance.</div>
+          <div class="actions">
+            <button class="view-photos" data-g="stags">⛶ View photos</button>
+            <a class="visit" href="https://www.stagsleapwinecellars.com" target="_blank" rel="noopener">Visit site →</a>
+          </div>
         </div>
       </div>
 
       <!-- DUCKHORN / PARADUXX -->
       <div class="card">
-        <div class="photo p-duck">
-          <img src="https://www.theduckhorncollection.com/cdn/shop/files/2025-11-03_TDC_SHOOT-5113.webp?v=1780452184&width=1600" alt="The Duckhorn Collection at Paraduxx tasting terrace" loading="lazy" referrerpolicy="no-referrer">
+        <div class="photo p-duck" data-g="duck" role="button" tabindex="0" aria-label="Open Duckhorn Paraduxx photo gallery">
+          <img src="https://www.theduckhorncollection.com/cdn/shop/files/mega-events-2.jpg?v=1780677694&width=1554" alt="The Duckhorn Collection at Paraduxx courtyard and terrace at dusk" loading="lazy" referrerpolicy="no-referrer">
+          <span class="gallery-badge">⛶ 4 photos</span>
           <span class="initial">D</span>
           <span class="vibe">Vineyard terrace<br>· relaxed &amp; upscale</span>
         </div>
@@ -238,6 +315,10 @@
             <li>2-for-1 options via regional wine passes</li>
           </ul>
           <div class="tip"><b>Planning:</b> Great value — check regional wine passes for 2-for-1.</div>
+          <div class="actions">
+            <button class="view-photos" data-g="duck">⛶ View photos</button>
+            <a class="visit" href="https://www.theduckhorncollection.com" target="_blank" rel="noopener">Visit site →</a>
+          </div>
         </div>
       </div>
 
@@ -260,28 +341,28 @@
         </thead>
         <tbody>
           <tr>
-            <td class="brand">HALL St. Helena</td>
+            <td class="brand"><a class="tlink" href="https://www.hallwines.com" target="_blank" rel="noopener">HALL St. Helena</a></td>
             <td class="price" data-val="45">$45</td>
             <td>Bold, deep, structured Cabernets</td>
             <td>Modern luxury, high-end fine-art collection</td>
             <td>Walk-ins welcome; booking avoids wait times</td>
           </tr>
           <tr>
-            <td class="brand">PEJU Winery</td>
+            <td class="brand"><a class="tlink" href="https://www.peju.com" target="_blank" rel="noopener">PEJU Winery</a></td>
             <td class="price" data-val="65">$65</td>
             <td>Rich red blends &amp; Rutherford Cabernets</td>
             <td>Elegant manicured towers &amp; garden grounds</td>
             <td>Walk-ins accommodated if space allows</td>
           </tr>
           <tr>
-            <td class="brand">Stag's Leap Wine Cellars</td>
+            <td class="brand"><a class="tlink" href="https://www.stagsleapwinecellars.com" target="_blank" rel="noopener">Stag's Leap Wine Cellars</a></td>
             <td class="price" data-val="95">$95</td>
             <td>World-famous estate Cabernets (FAY / S.L.V.)</td>
             <td>Sleek, contemporary glass-walled pavilion</td>
             <td>Reservations required well in advance</td>
           </tr>
           <tr>
-            <td class="brand">Duckhorn · Paraduxx</td>
+            <td class="brand"><a class="tlink" href="https://www.theduckhorncollection.com" target="_blank" rel="noopener">Duckhorn · Paraduxx</a></td>
             <td class="price" data-val="50">$50</td>
             <td>Iconic Napa Merlots &amp; robust red blends</td>
             <td>Contemporary vineyard terrace setting</td>
@@ -299,7 +380,141 @@
 
 </div>
 
+<!-- ============ LIGHTBOX ============ -->
+<div class="lb" id="lb" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="lb-top">
+    <div><span class="lb-title" id="lbTitle"></span><span class="lb-count" id="lbCount"></span></div>
+    <button class="lb-close" id="lbClose" aria-label="Close gallery">✕</button>
+  </div>
+  <div class="lb-stage" id="lbStage">
+    <button class="lb-nav lb-prev" id="lbPrev" aria-label="Previous photo">‹</button>
+    <img class="lb-img" id="lbImg" alt="" referrerpolicy="no-referrer">
+    <button class="lb-nav lb-next" id="lbNext" aria-label="Next photo">›</button>
+  </div>
+  <div class="lb-cap" id="lbCap"></div>
+  <div class="lb-thumbs" id="lbThumbs"></div>
+</div>
+
 <script>
+  (function(){
+    var GALLERIES = {
+      hall: { title: 'HALL St. Helena', images: [
+        { src: 'https://hallwines.com/cdn/shop/files/shvc_art_banner.webp?v=1780598225&width=1600', cap: 'Sculpture garden & grounds' },
+        { src: 'https://hallwines.com/cdn/shop/files/baldesarri_camel_explore.webp?v=1779218609&width=1600', cap: 'Estate art & glass architecture' },
+        { src: 'https://hallwines.com/cdn/shop/files/the_wines_hall.webp?v=1779395720&width=1600', cap: 'Tasting bar & cellar' }
+      ]},
+      peju: { title: 'PEJU Winery', images: [
+        { src: 'https://www.peju.com/wp-content/uploads/2024/05/Drone-Shot-Full-scaled.webp', cap: 'Aerial of the estate & tower' },
+        { src: 'https://www.peju.com/wp-content/uploads/2024/05/StainedGlassEdit-scaled.webp', cap: 'Tower stained glass' },
+        { src: 'https://www.peju.com/wp-content/uploads/2024/06/koi-Pond-v2-scaled.webp', cap: 'Koi pond & gardens' },
+        { src: 'https://www.peju.com/wp-content/uploads/2024/06/Culinary-Gardens-scaled.webp', cap: 'Culinary gardens' }
+      ]},
+      stags: { title: "Stag's Leap Wine Cellars", images: [
+        { src: 'https://www.stagsleapwinecellars.com/wp-content/uploads/2024/09/Tasting-Room-View-Sm.jpg', cap: 'Glass tasting room & valley view' },
+        { src: 'https://www.stagsleapwinecellars.com/wp-content/uploads/2024/04/SLWC-Inside-Tasting-Room-Looking-Out.jpg', cap: 'Tasting room looking out to the vineyards' },
+        { src: 'https://www.stagsleapwinecellars.com/wp-content/uploads/2024/01/visit-cave.jpg', cap: 'Estate wine caves' },
+        { src: 'https://www.stagsleapwinecellars.com/wp-content/uploads/2023/11/estate-header.jpg', cap: 'Estate & S.L.V. vineyards' }
+      ]},
+      duck: { title: 'The Duckhorn Collection at Paraduxx', images: [
+        { src: 'https://www.theduckhorncollection.com/cdn/shop/files/mega-events-2.jpg?v=1780677694&width=1554', cap: 'Courtyard & terrace at dusk' },
+        { src: 'https://www.theduckhorncollection.com/cdn/shop/files/mega-events-1.jpg?v=1780677694&width=1554', cap: 'Estate lounge' },
+        { src: 'https://www.theduckhorncollection.com/cdn/shop/files/DSC05431.jpg_7.png?v=1782254232&width=1400', cap: 'Oak-shaded tasting grounds' },
+        { src: 'https://www.theduckhorncollection.com/cdn/shop/files/mega-visit-2.jpg?v=1780677348&width=1554', cap: 'Culinary pairing' }
+      ]}
+    };
+
+    var lb = document.getElementById('lb');
+    var lbImg = document.getElementById('lbImg');
+    var lbTitle = document.getElementById('lbTitle');
+    var lbCount = document.getElementById('lbCount');
+    var lbCap = document.getElementById('lbCap');
+    var lbThumbs = document.getElementById('lbThumbs');
+    var stage = document.getElementById('lbStage');
+    var g = null, idx = 0;
+
+    function show(i){
+      var n = g.images.length;
+      idx = (i + n) % n;
+      var item = g.images[idx];
+      lbImg.src = item.src;
+      lbImg.alt = g.title + ' — ' + item.cap;
+      lbCap.textContent = item.cap;
+      lbCount.textContent = (idx + 1) + ' / ' + n;
+      var thumbs = lbThumbs.children;
+      for (var t = 0; t < thumbs.length; t++){
+        thumbs[t].classList.toggle('active', t === idx);
+      }
+    }
+
+    function open(key){
+      g = GALLERIES[key];
+      if (!g) return;
+      lbTitle.textContent = g.title;
+      lbThumbs.innerHTML = '';
+      g.images.forEach(function(item, i){
+        var th = document.createElement('img');
+        th.className = 'lb-thumb';
+        th.src = item.src;
+        th.alt = item.cap;
+        th.loading = 'lazy';
+        th.setAttribute('referrerpolicy', 'no-referrer');
+        th.addEventListener('click', function(){ show(i); });
+        lbThumbs.appendChild(th);
+      });
+      show(0);
+      lb.classList.add('open');
+      lb.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function close(){
+      lb.classList.remove('open');
+      lb.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      lbImg.src = '';
+    }
+
+    // wire up card covers + "view photos" buttons
+    var triggers = document.querySelectorAll('[data-g]');
+    triggers.forEach(function(el){
+      el.addEventListener('click', function(){ open(el.getAttribute('data-g')); });
+      if (el.getAttribute('role') === 'button'){
+        el.addEventListener('keydown', function(e){
+          if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(el.getAttribute('data-g')); }
+        });
+      }
+    });
+
+    document.getElementById('lbPrev').addEventListener('click', function(){ show(idx - 1); });
+    document.getElementById('lbNext').addEventListener('click', function(){ show(idx + 1); });
+    document.getElementById('lbClose').addEventListener('click', close);
+    lb.addEventListener('click', function(e){
+      if (e.target === lb || e.target === stage) close();
+    });
+    document.addEventListener('keydown', function(e){
+      if (!lb.classList.contains('open')) return;
+      if (e.key === 'Escape') close();
+      else if (e.key === 'ArrowLeft') show(idx - 1);
+      else if (e.key === 'ArrowRight') show(idx + 1);
+    });
+
+    // touch swipe
+    var startX = 0, startY = 0, tracking = false;
+    stage.addEventListener('touchstart', function(e){
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY; tracking = true;
+    }, { passive: true });
+    stage.addEventListener('touchend', function(e){
+      if (!tracking) return;
+      tracking = false;
+      var dx = e.changedTouches[0].clientX - startX;
+      var dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)){
+        show(dx < 0 ? idx + 1 : idx - 1);
+      }
+    }, { passive: true });
+  })();
+
   (function(){
     var table = document.getElementById('matrix');
     var tbody = table.querySelector('tbody');
