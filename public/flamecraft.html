@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flamecraft — Turn, Setup, Rulebook & FAQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12100e;
+    --surface:#1c1815;
+    --surface2:#262019;
+    --gold:#e0a94a;
+    --gold-lt:#f6cd7d;
+    --ember:#e2703a;
+    --white:#f7efe4;
+    --sec:#b5a695;
+    --muted:#6f6153;
+    --line:rgba(224,169,74,0.16);
+    --line2:rgba(224,169,74,0.42);
+    --gather:#6fbf68;
+    --gather-lt:#9fdd97;
+    --enchant:#a98bf0;
+    --enchant-lt:#c9b5f8;
+    --rep:#f2748f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{
+    background:var(--bg);color:var(--white);
+    font-family:"DM Mono",monospace;-webkit-font-smoothing:antialiased;
+  }
+  body{
+    background:radial-gradient(120% 80% at 50% 0%, #2a1a10 0%, var(--bg) 60%);
+    min-height:100vh;padding:38px 18px 80px;line-height:1.6;
+  }
+  .wrap{max-width:920px;margin:0 auto}
+
+  /* ---------- header ---------- */
+  header{border-bottom:1px solid var(--line);padding-bottom:22px}
+  .kicker{font-size:10.5px;letter-spacing:.28em;text-transform:uppercase;color:var(--ember)}
+  h1{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:clamp(26px,6vw,36px);
+    color:var(--white);margin:10px 0 10px;line-height:1.08;letter-spacing:.01em}
+  .sub{font-size:13px;color:var(--sec);max-width:64ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .chip{font-size:10.5px;letter-spacing:.08em;color:var(--gold-lt);
+    border:1px solid var(--line2);border-radius:100px;padding:5px 12px;
+    background:rgba(224,169,74,0.05)}
+
+  /* ---------- tabs ---------- */
+  .tabs{display:flex;gap:8px;margin:22px 0 4px;position:sticky;top:0;z-index:20;
+    padding:12px 0;background:linear-gradient(180deg,var(--bg) 72%,rgba(18,16,14,0));}
+  .tab{flex:1;font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--sec);
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:13px 6px;cursor:pointer;transition:all .18s;text-align:center}
+  .tab:hover{border-color:var(--line2);color:var(--gold-lt)}
+  .tab[aria-selected="true"]{color:#241708;background:linear-gradient(180deg,var(--gold-lt),var(--gold));
+    border-color:var(--gold-lt);box-shadow:0 0 16px rgba(224,169,74,0.35)}
+  @media(max-width:600px){.tabs{flex-wrap:wrap}.tab{flex:1 1 44%;font-size:10px}}
+  .panel[hidden]{display:none}
+
+  /* ---------- shared ---------- */
+  h2{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:12px;
+    letter-spacing:.22em;text-transform:uppercase;color:var(--gold);
+    margin:36px 0 16px;display:flex;align-items:center;gap:12px}
+  h2::after{content:"";flex:1;height:1px;background:var(--line)}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:22px 0 6px}
+  .btn{font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--sec);
+    background:none;border:1px solid var(--line);border-radius:100px;
+    padding:9px 16px;cursor:pointer;transition:all .18s}
+  .btn:hover{border-color:var(--gold-lt);color:var(--gold-lt)}
+  .btn.on{color:#241708;background:var(--gold);border-color:var(--gold-lt)}
+  b,strong{color:var(--white);font-weight:500}
+
+  /* ---------- flow cards ---------- */
+  .stack{display:flex;flex-direction:column;gap:14px;margin-top:18px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:20px 20px 20px 22px;border-left:3px solid var(--gold);
+    animation:rise .28s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .card.gather{border-left-color:var(--gather)}
+  .card.enchant{border-left-color:var(--enchant)}
+  .card.close{border-left-color:var(--ember)}
+  .phase{font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);
+    display:block;margin-bottom:6px}
+  .card.gather .phase{color:var(--gather)}
+  .card.enchant .phase{color:var(--enchant)}
+  .card.close .phase{color:var(--ember)}
+  .card h3{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:17px;
+    color:var(--white);line-height:1.25;margin-bottom:12px}
+  .lines{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .lines li{font-size:13px;color:var(--sec);padding-left:17px;position:relative;line-height:1.55}
+  .lines li::before{content:"";position:absolute;left:0;top:8px;width:5px;height:5px;
+    border-radius:50%;background:var(--gold);opacity:.8}
+  .card.gather .lines li::before{background:var(--gather)}
+  .card.enchant .lines li::before{background:var(--enchant)}
+  .card.close .lines li::before{background:var(--ember)}
+  .lines.numbered{counter-reset:n}
+  .lines.numbered li{padding-left:26px;counter-increment:n}
+  .lines.numbered li::before{content:counter(n);width:auto;height:auto;background:none!important;
+    top:0;font-size:11px;color:var(--gold);font-weight:500}
+  .card.close .lines.numbered li::before{color:var(--ember)}
+
+  .note{margin-top:14px;font-size:12px;line-height:1.55;border-radius:8px;
+    padding:11px 13px;border:1px solid var(--line);background:rgba(224,169,74,0.04);color:var(--sec)}
+  .note.warn{border-color:rgba(226,112,58,0.4);background:rgba(226,112,58,0.07)}
+  .note.warn b{color:var(--ember)}
+  .note .lbl{font-family:"Space Grotesk",sans-serif;font-size:9.5px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--gold);display:block;margin-bottom:4px}
+  .note.warn .lbl{color:var(--ember)}
+
+  /* ---------- forks ---------- */
+  .fork{background:var(--surface2);border:1px solid var(--line2);border-radius:12px;padding:20px;
+    animation:rise .28s ease both}
+  .fork .q{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:15.5px;
+    color:var(--white);line-height:1.3}
+  .fork .hint{font-size:11.5px;color:var(--muted);margin-top:5px}
+  .opts{display:flex;flex-wrap:wrap;gap:10px;margin-top:15px}
+  .opt{flex:1 1 200px;font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:600;
+    color:var(--white);background:rgba(255,255,255,0.03);border:1px solid var(--line2);
+    border-radius:10px;padding:14px 15px;cursor:pointer;text-align:left;transition:all .16s;
+    line-height:1.3}
+  .opt:hover{border-color:var(--gold-lt);background:rgba(224,169,74,0.1);transform:translateY(-1px)}
+  .opt small{display:block;font-family:"DM Mono",monospace;font-weight:400;font-size:11px;
+    color:var(--sec);margin-top:4px}
+  .opt.g:hover{border-color:var(--gather);background:rgba(111,191,104,0.12)}
+  .opt.e:hover{border-color:var(--enchant);background:rgba(169,139,240,0.12)}
+  .answered{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-top:12px}
+  .answered .picked{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:600;
+    color:#241708;background:var(--gold);border-radius:100px;padding:5px 14px}
+  .fork.done{border-color:var(--line);background:var(--surface)}
+  .fork.done .q{font-size:13.5px;color:var(--sec);font-weight:500}
+  .redo{font-family:"DM Mono",monospace;font-size:11px;color:var(--muted);background:none;
+    border:none;cursor:pointer;text-decoration:underline;padding:0}
+  .redo:hover{color:var(--gold-lt)}
+
+  /* ---------- legend / ability table ---------- */
+  .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-top:14px}
+  .lg{display:flex;gap:10px;align-items:flex-start;font-size:12px;color:var(--sec);
+    background:rgba(0,0,0,0.22);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+  .dot{width:15px;height:15px;border-radius:4px;flex-shrink:0;margin-top:3px;
+    border:1px solid rgba(255,255,255,0.18)}
+  .lg b{display:block;font-size:12px}
+  .fire{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+  .fr{display:grid;grid-template-columns:112px 1fr;gap:12px;align-items:baseline;
+    font-size:12px;color:var(--sec);background:rgba(0,0,0,0.22);
+    border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+  .fr .g{display:flex;align-items:center;gap:7px;font-family:"Space Grotesk",sans-serif;
+    font-weight:600;font-size:11.5px;color:var(--white);letter-spacing:.03em}
+  @media(max-width:560px){.fr{grid-template-columns:1fr;gap:4px}}
+
+  .banner{border:1px solid rgba(242,116,143,0.35);background:rgba(242,116,143,0.07);
+    border-radius:10px;padding:13px 15px;font-size:12.5px;color:var(--sec);line-height:1.55;
+    margin-top:20px}
+  .banner .lbl{font-family:"Space Grotesk",sans-serif;font-size:9.5px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--rep);display:block;margin-bottom:4px}
+
+  /* ---------- full script ---------- */
+  .grouphead{font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:700;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--gold);
+    margin:30px 0 4px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .grouphead.gather{color:var(--gather);border-color:rgba(111,191,104,0.28)}
+  .grouphead.enchant{color:var(--enchant);border-color:rgba(169,139,240,0.28)}
+  .grouphead.close{color:var(--ember);border-color:rgba(226,112,58,0.28)}
+  .branchbox{background:var(--surface2);border:1px dashed var(--line2);border-radius:10px;
+    padding:15px 18px}
+  .branchbox .q{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:13.5px;color:var(--white)}
+  .branchrow{font-size:12.5px;color:var(--sec);margin-top:9px;padding-left:16px;position:relative}
+  .branchrow::before{content:"→";position:absolute;left:0;color:var(--gold)}
+  .branchrow b{color:var(--gold-lt);font-weight:500}
+
+  /* ---------- setup ---------- */
+  .pcount{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .pc{flex:1 1 90px;font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:700;
+    color:var(--sec);background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:13px 8px;cursor:pointer;transition:all .16s;text-align:center;line-height:1.25}
+  .pc small{display:block;font-family:"DM Mono",monospace;font-weight:400;font-size:9.5px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+  .pc:hover{border-color:var(--line2);color:var(--gold-lt)}
+  .pc[aria-pressed="true"]{color:#241708;background:linear-gradient(180deg,var(--gold-lt),var(--gold));
+    border-color:var(--gold-lt);box-shadow:0 0 14px rgba(224,169,74,0.3)}
+  .pc[aria-pressed="true"] small{color:rgba(36,23,8,0.7)}
+  .deltas{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:16px}
+  .delta{background:rgba(224,169,74,0.06);border:1px solid var(--line2);border-radius:10px;padding:14px 15px}
+  .delta .lbl{font-family:"Space Grotesk",sans-serif;font-size:9.5px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--gold);display:block;margin-bottom:6px}
+  .delta .val{font-size:13px;color:var(--white);line-height:1.5}
+  .delta .val span{color:var(--sec)}
+  .steps{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:20px;display:grid;grid-template-columns:34px 1fr;gap:16px}
+  @media(max-width:520px){.step{grid-template-columns:1fr;gap:10px}}
+  .num{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:15px;color:var(--gold);
+    border:1px solid var(--line2);border-radius:8px;width:34px;height:34px;
+    display:flex;align-items:center;justify-content:center}
+  .step h3{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:15.5px;
+    color:var(--white);margin-bottom:10px}
+  .varies{display:inline-block;font-family:"DM Mono",monospace;font-size:9px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ember);border:1px solid rgba(226,112,58,0.45);
+    border-radius:100px;padding:2px 9px;margin-left:8px;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+  th{font-family:"Space Grotesk",sans-serif;font-size:9.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--gold);font-weight:600}
+  td{color:var(--sec)}
+  td b{color:var(--white)}
+  .scroller{overflow-x:auto}
+
+  /* ---------- gallery ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:18px}
+  .gcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    overflow:hidden;cursor:pointer;transition:all .18s;display:flex;flex-direction:column}
+  .gcard:hover{border-color:var(--line2);transform:translateY(-3px);
+    box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+  .gcard img{width:100%;aspect-ratio:1/1;object-fit:cover;object-position:top;display:block;
+    background:var(--surface2)}
+  .gcap{padding:9px 11px 11px}
+  .gnum{font-family:"Space Grotesk",sans-serif;font-size:9px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--gold);display:block}
+  .gttl{font-size:11.5px;color:var(--sec);line-height:1.35;margin-top:3px}
+
+  .lb{position:fixed;inset:0;z-index:100;display:none;
+    background:rgba(10,7,5,0.96);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .lb.open{display:flex;flex-direction:column}
+  .lb-top{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;gap:14px}
+  .lb-title{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:13px;color:var(--white)}
+  .lb-title span{color:var(--gold);font-size:11px;letter-spacing:.14em;margin-right:10px}
+  .lb-close{background:none;border:1px solid var(--line2);color:var(--white);
+    width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;transition:all .18s}
+  .lb-close:hover{border-color:var(--gold-lt);color:var(--gold-lt)}
+  .lb-stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;
+    padding:0 10px;min-height:0;overflow:auto;touch-action:pan-y pinch-zoom}
+  .lb-img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);user-select:none;-webkit-user-drag:none;background:#fff}
+  .lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(10,7,5,0.75);
+    border:1px solid var(--line2);color:var(--white);width:46px;height:46px;border-radius:50%;
+    font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;transition:all .18s;z-index:2}
+  .lb-nav:hover{border-color:var(--gold-lt);color:var(--gold-lt);background:rgba(10,7,5,0.95)}
+  .lb-prev{left:14px} .lb-next{right:14px}
+  .lb-thumbs{display:flex;gap:8px;overflow-x:auto;padding:12px 20px 20px}
+  .lb-thumb{width:52px;height:52px;object-fit:cover;object-position:top;border-radius:5px;
+    cursor:pointer;opacity:.4;border:2px solid transparent;transition:all .18s;flex-shrink:0}
+  .lb-thumb:hover{opacity:.8}
+  .lb-thumb.active{opacity:1;border-color:var(--gold-lt)}
+  @media(max-width:600px){.lb-nav{width:38px;height:38px;font-size:18px}}
+
+  /* ---------- faq ---------- */
+  .search{width:100%;font-family:"DM Mono",monospace;font-size:13px;color:var(--white);
+    background:var(--surface);border:1px solid var(--line2);border-radius:10px;
+    padding:14px 16px;margin-top:16px;outline:none;transition:all .18s}
+  .search::placeholder{color:var(--muted)}
+  .search:focus{border-color:var(--gold-lt);box-shadow:0 0 14px rgba(224,169,74,0.2)}
+  .faqcat{font-family:"Space Grotesk",sans-serif;font-size:10.5px;font-weight:700;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--gold);
+    margin:28px 0 10px;padding-bottom:7px;border-bottom:1px solid var(--line)}
+  details.qa{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    margin-bottom:9px;overflow:hidden;transition:border-color .18s}
+  details.qa[open]{border-color:var(--line2)}
+  details.qa summary{cursor:pointer;list-style:none;padding:15px 18px;
+    font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:13.5px;color:var(--white);
+    display:flex;gap:12px;align-items:flex-start;line-height:1.4}
+  details.qa summary::-webkit-details-marker{display:none}
+  details.qa summary::before{content:"+";color:var(--gold);font-size:15px;line-height:1.2;flex-shrink:0}
+  details.qa[open] summary::before{content:"–"}
+  details.qa summary:hover{color:var(--gold-lt)}
+  .qa .ans{padding:0 18px 17px 42px;font-size:12.5px;color:var(--sec);line-height:1.65}
+  .noresult{font-size:12.5px;color:var(--muted);padding:24px 4px;text-align:center}
+
+  footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);
+    font-size:11px;color:var(--muted);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">Board game reference</div>
+    <h1>Flamecraft</h1>
+    <p class="sub">Everything needed at the table: a step-by-step script for taking your turn with every fork included, a setup guide keyed to your player count, the full rulebook to flip through, and a growing FAQ.</p>
+    <div class="meta">
+      <span class="chip">1–5 players</span>
+      <span class="chip">~60 min</span>
+      <span class="chip">Cardboard Alchemy</span>
+      <span class="chip">Rules as written</span>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-panel="turn">Your turn</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="setup">Setup</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="gallery">Rulebook</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="faq">FAQ</button>
+  </div>
+
+  <!-- ================= TURN ================= -->
+  <section class="panel" id="panel-turn">
+    <div class="banner">
+      <span class="lbl">True at any point in your turn</span>
+      You may reveal a <b>Sun&nbsp;☀ Fancy Dragon</b> whose goal you’ve already met and take its reward — once per card, at any moment on your turn. <b>Moon&nbsp;🌙 Fancy Dragons</b> stay hidden until the game ends.
+    </div>
+    <div class="bar">
+      <button class="btn" id="restart">↺ Start the turn over</button>
+      <button class="btn" id="toggleFull">Show the whole script</button>
+    </div>
+    <div class="stack" id="flow"></div>
+  </section>
+
+  <!-- ================= SETUP ================= -->
+  <section class="panel" id="panel-setup" hidden>
+    <h2>How many are playing?</h2>
+    <p class="sub">Setup is nearly identical at every count. Only three things move — the size of the Artisan deck, who starts with a Good, and how big Town can grow.</p>
+    <div class="pcount" id="pcount">
+      <button class="pc" data-n="1" aria-pressed="false">1<small>Solo</small></button>
+      <button class="pc" data-n="2" aria-pressed="false">2<small>Players</small></button>
+      <button class="pc" data-n="3" aria-pressed="false">3<small>Players</small></button>
+      <button class="pc" data-n="4" aria-pressed="true">4<small>Players</small></button>
+      <button class="pc" data-n="5" aria-pressed="false">5<small>Players</small></button>
+    </div>
+    <div class="deltas" id="deltas"></div>
+    <div id="soloNote"></div>
+
+    <h2>Setup, step by step</h2>
+    <div class="steps" id="setupSteps"></div>
+
+    <h2>When you’re done, the table should look like this</h2>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Where</th><th>What’s there</th></tr></thead>
+        <tbody id="glance"></tbody>
+      </table>
+    </div>
+
+    <h2>How the game ends</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">→</div>
+        <div>
+          <h3>The trigger</h3>
+          <ul class="lines">
+            <li>The moment the <b>last card of the Artisan deck or the Enchantment deck</b> is drawn or revealed, the end is triggered.</li>
+            <li>Everyone gets <b>one final turn</b> — including the player who set it off.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">❤</div>
+        <div>
+          <h3>Final scoring, in this order</h3>
+          <ul class="lines numbered">
+            <li>Return <b>all your Coins</b> to the Fountain and score <b>1 ❤ each</b>.</li>
+            <li>Reveal every <b>Moon 🌙 Fancy Dragon</b> whose goal you fulfilled and score it.</li>
+          </ul>
+          <div class="note warn"><span class="lbl">Order matters</span>Coins go back <b>before</b> Fancy Dragons score — so a Coin can never help fulfil a Fancy Dragon’s goal.</div>
+          <div class="note"><span class="lbl">Ties</span>Most Artisan Dragons left in hand wins. Still tied? Most leftover Goods. Still tied? Share the victory.</div>
+        </div>
+      </div>
+    </div>
+    <div id="soloScore"></div>
+  </section>
+
+  <!-- ================= GALLERY ================= -->
+  <section class="panel" id="panel-gallery" hidden>
+    <h2>The rulebook, page by page</h2>
+    <p class="sub">All 20 pages of the official rulebook. Tap any page to open it full-size — then swipe, use the arrows, or press ← / → to move through.</p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <!-- ================= FAQ ================= -->
+  <section class="panel" id="panel-faq" hidden>
+    <h2>Questions that keep coming up</h2>
+    <p class="sub">The rules people misremember, look up mid-game, or argue about. This list grows — every time a new question comes up at the table, it gets answered here so nobody has to ask twice.</p>
+    <input class="search" id="faqSearch" type="search" placeholder="Search the FAQ — try “coins”, “enchant”, “tie”…" autocomplete="off">
+    <div id="faqList"></div>
+  </section>
+
+  <footer>
+    Written from the official Flamecraft rulebook. Game design <b>Manny Vega</b>, illustration <b>Sandara Tang</b>, published by <b>Cardboard Alchemy</b> (2022). Rulebook pages reproduced here for personal reference at the table.<br>
+    Where the rulebook uses an icon, this guide names the Good by its colour — match the token, not the word. Goods appear as <b>Bread</b> · <b>Meat</b> · <b>Iron</b> · <b>Gem</b> · <b>Herb</b> · <b>Potion</b>.
+  </footer>
+</div>
+
+<!-- lightbox -->
+<div class="lb" id="lb">
+  <div class="lb-top">
+    <div class="lb-title"><span id="lbNum"></span><span id="lbTtl" style="color:var(--white);letter-spacing:0;font-size:13px"></span></div>
+    <button class="lb-close" id="lbClose" aria-label="Close">✕</button>
+  </div>
+  <div class="lb-stage" id="lbStage">
+    <button class="lb-nav lb-prev" id="lbPrev" aria-label="Previous page">‹</button>
+    <img class="lb-img" id="lbImg" alt="">
+    <button class="lb-nav lb-next" id="lbNext" aria-label="Next page">›</button>
+  </div>
+  <div class="lb-thumbs" id="lbThumbs"></div>
+</div>
+
+<script>
+/* =========================================================
+   Shared reference blocks
+   ========================================================= */
+const GOODS = [
+  ['#e8b73f','Bread','the yellow token'],
+  ['#c0392b','Meat','the red token'],
+  ['#4a6b8a','Iron','the steel-blue token'],
+  ['#3fb8d4','Gem','the cyan token'],
+  ['#5aa84f','Herb','the green token'],
+  ['#8e5ad6','Potion','the purple token']
+];
+
+const FIRE = [
+  ['#e8b73f','Bread','Draw 1 Artisan Dragon — take a faceup one from the Park, or the top card of the deck.'],
+  ['#c0392b','Meat','Place an Artisan Dragon anywhere in Town on an empty slot matching its icon, and gain that slot’s reward.'],
+  ['#4a6b8a','Iron','Gain <b>2 of a single Good</b> — one offered by this Shop or by a Dragon here. Not Coins, not Dragons.'],
+  ['#3fb8d4','Gem','Gain any <b>3 different Goods</b> of your choice.'],
+  ['#5aa84f','Herb','Gift 1 Good from your supply to another player, and gain <b>2 ❤</b>.'],
+  ['#8e5ad6','Potion','Swap this Dragon with another Artisan Dragon in Town, then fire up the Dragon that arrived.']
+];
+
+function legendHTML(){
+  const rows = [
+    ...GOODS.map(([c,n,d]) => `<div class="lg"><span class="dot" style="background:${c}"></span><span><b>${n} icon</b>${d} — take that exact Good</span></div>`),
+    `<div class="lg"><span class="dot" style="background:linear-gradient(135deg,#e8b73f,#c0392b,#3fb8d4,#5aa84f)"></span><span><b>Rainbow</b>any one Good you choose</span></div>`,
+    `<div class="lg"><span class="dot" style="background:#f0a825"></span><span><b>Coin</b>take 1 Coin — Coins are wild when you spend them</span></div>`,
+    `<div class="lg"><span class="dot" style="background:#8a6a4a"></span><span><b>Dragon</b>draw 1 Artisan Dragon from the Park or the deck</span></div>`
+  ];
+  return `<div class="legend">${rows.join('')}</div>`;
+}
+function fireHTML(){
+  return `<div class="fire">${FIRE.map(([c,n,t]) =>
+    `<div class="fr"><span class="g"><span class="dot" style="background:${c};margin-top:0"></span>${n}</span><span>${t}</span></div>`
+  ).join('')}</div>`;
+}
+
+/* =========================================================
+   The turn, as a graph of steps and forks
+   ========================================================= */
+const FLOW = {
+  visit:{
+    branch:'open', kind:'step', phase:'Step 1 · Visit',
+    title:'Move to a Shop',
+    lines:[
+      'Move your dragon token onto <b>any</b> Shop card in Town.',
+      'It must be a <b>different Shop than the one you visited last turn</b>.'
+    ],
+    notes:[['','You always move first, then decide what to do there. There is no option to stay put.']],
+    next:'occupied'
+  },
+  occupied:{
+    branch:'open', kind:'fork',
+    q:'Is another player’s token already on that Shop?',
+    opts:[
+      {label:'No — it’s clear', sub:'Nobody else is standing there', to:'action'},
+      {label:'Yes — someone’s there', sub:'One or more other tokens', to:'toll'}
+    ]
+  },
+  toll:{
+    branch:'open', kind:'step', phase:'Step 1 · Visit',
+    title:'Pay your way in',
+    lines:[
+      'Give <b>each</b> player already at that Shop <b>1 Good of your choice — or 1 Coin</b> — from your personal supply.',
+      'The gift comes out of your supply; they keep it.'
+    ],
+    notes:[['warn','If you can’t give one to <b>every</b> player standing there, you may not visit that Shop. Pick a different one.']],
+    next:'action'
+  },
+  action:{
+    branch:'open', kind:'fork',
+    q:'What are you doing at this Shop?',
+    hint:'You do one or the other — never both.',
+    opts:[
+      {label:'GATHER', sub:'Take everything the Shop produces', to:'g_take', cls:'g'},
+      {label:'ENCHANT', sub:'Tuck a spell behind the Shop', to:'e_gate', cls:'e'}
+    ]
+  },
+
+  g_take:{
+    branch:'gather', kind:'step', phase:'Step 2 · Gather — required',
+    title:'Take everything the Shop produces',
+    lines:[
+      '<b>1</b> item from the <b>Shop card</b> itself — whatever its top-left icon shows.',
+      '<b>+1 Good</b> from <b>each Artisan Dragon</b> sitting at the Shop — read each Dragon’s own top-left icon.',
+      '<b>+1 Good</b> from <b>each Enchantment</b> tucked behind the Shop.'
+    ],
+    extra:'legend',
+    notes:[['','<b>Coins are not Goods.</b> When something lets you take “a Good of your choice,” you may not take a Coin instead.']],
+    next:'g_place_q'
+  },
+  g_place_q:{
+    branch:'gather', kind:'fork',
+    q:'Place an Artisan Dragon from your hand?',
+    hint:'Optional — you may place at most one.',
+    opts:[
+      {label:'Yes — place one', sub:'There’s an empty slot I can match', to:'g_place', cls:'g'},
+      {label:'Skip it', sub:'No slot, or I’d rather hold my Dragons', to:'g_fire_q'}
+    ]
+  },
+  g_place:{
+    branch:'gather', kind:'step', phase:'Step 2 · Gather — optional',
+    title:'Place the Dragon',
+    lines:[
+      'Choose an <b>empty</b> slot at this Shop. Your Dragon’s icon must <b>match an icon on that slot</b>.',
+      'A slot showing several icons — match any one of them. A <b>rainbow</b> slot takes any Dragon at all.',
+      'Slots fill in <b>any order</b>. You don’t have to go left to right.',
+      '<b>Gain the reward printed on the slot you just filled.</b>'
+    ],
+    next:'g_filled_q'
+  },
+  g_filled_q:{
+    branch:'gather', kind:'fork',
+    q:'Was that the Shop’s last empty slot?',
+    opts:[
+      {label:'Yes — the Shop is full', sub:'Every slot now has a Dragon', to:'g_newshop', cls:'g'},
+      {label:'No — slots still open', sub:'At least one slot is empty', to:'g_fire_q'}
+    ]
+  },
+  g_newshop:{
+    branch:'gather', kind:'step', phase:'Step 2 · Gather — triggered',
+    title:'A new Shop comes to town',
+    lines:[
+      'Draw the top card of the Shop deck <b>without looking at it</b>.',
+      'Place it <b>facedown</b> on any empty Shop spot in Town — it doesn’t matter which one.',
+      'You’ll flip it faceup at the end of your turn.'
+    ],
+    notes:[['warn','If Town is already full — <b>12 spots</b> at 1–2 players, up to <b>14</b> at 3–5 — skip this entirely.']],
+    next:'g_fire_q'
+  },
+  g_fire_q:{
+    branch:'gather', kind:'fork',
+    q:'Fire up a Dragon? 🔥',
+    hint:'Optional — on a Gather you get exactly one.',
+    opts:[
+      {label:'Yes — fire one up', sub:'Any single Dragon at this Shop', to:'g_fire', cls:'g'},
+      {label:'Skip it', sub:'Nothing worth using', to:'g_shop_q'}
+    ]
+  },
+  g_fire:{
+    branch:'gather', kind:'step', phase:'Step 2 · Gather — optional',
+    title:'Fire up ONE Dragon',
+    lines:[
+      'Use the 🔥 ability of <b>any one</b> Artisan Dragon at this Shop — the one you just placed, or one that was already sitting there.',
+      'Every Dragon sharing an icon has the same ability:'
+    ],
+    extra:'fire',
+    next:'g_shop_q'
+  },
+  g_shop_q:{
+    branch:'gather', kind:'fork',
+    q:'Use the Shop’s own ability?',
+    hint:'Optional — and only available because you Gathered.',
+    opts:[
+      {label:'Yes — use it', sub:'This Shop has an ability I want', to:'g_shop', cls:'g'},
+      {label:'Skip it', sub:'No ability, or not worth the cost', to:'end'}
+    ]
+  },
+  g_shop:{
+    branch:'gather', kind:'step', phase:'Step 2 · Gather — optional',
+    title:'Use the Shop ability',
+    lines:[
+      'Resolve the ability printed in the dark band across the Shop card, paying any cost it asks for.',
+      'This is always the <b>last</b> thing you do at the Shop.'
+    ],
+    notes:[['','You can spend Goods you picked up earlier this same turn — the 7-per-type limit isn’t checked until your turn ends.']],
+    next:'end'
+  },
+
+  e_gate:{
+    branch:'enchant', kind:'step', phase:'Step 2 · Enchant — check first',
+    title:'Can you actually Enchant here?',
+    lines:[
+      'A <b>faceup Enchantment</b> in the row shares the <b>Shop’s icon</b>. A rainbow Shop accepts any Enchantment, and your own <b>reserved</b> Enchantment counts too.',
+      'And you can <b>pay its Goods cost</b>.'
+    ],
+    notes:[
+      ['warn','Both must be true. If either isn’t, you can’t Enchant here — Gather instead.'],
+      ['','Shops showing a <b>Dragon</b> or <b>Coin</b> icon can never be Enchanted. No Shop may hold more than <b>3 Enchantments</b>.']
+    ],
+    next:'e_cast'
+  },
+  e_cast:{
+    branch:'enchant', kind:'step', phase:'Step 2 · Enchant — required',
+    title:'Cast the Enchantment',
+    lines:[
+      '<b>Pay the Goods cost</b> shown on the card, returning those tokens to their piles.',
+      '<b>Coins are wild</b> — spend a Coin as any Good, and several Coins can each stand in for a different Good. Unless the card shows the 🚫 no-coin symbol.',
+      '<b>Gain the rewards</b> printed along the bottom of the card.',
+      '<b>Tuck the card behind the Shop.</b> From now on that Shop gives <b>1 extra Good</b> to <em>anyone</em> who Gathers there.'
+    ],
+    notes:[['','Some Enchantments show a set of Goods you may pay <b>more than once</b> for a bigger reward. Paying a single set is legal — but on many cards it scores 0 ❤.']],
+    next:'e_fire_q'
+  },
+  e_fire_q:{
+    branch:'enchant', kind:'fork',
+    q:'Fire up the Dragons here? 🔥',
+    hint:'Optional — on an Enchant you get ALL of them.',
+    opts:[
+      {label:'Yes — fire them up', sub:'Every Dragon at this Shop', to:'e_fire', cls:'e'},
+      {label:'Skip it', sub:'Nothing worth using', to:'end'}
+    ]
+  },
+  e_fire:{
+    branch:'enchant', kind:'step', phase:'Step 2 · Enchant — optional',
+    title:'Fire up EVERY Dragon',
+    lines:[
+      'Use the 🔥 ability of <b>each</b> Artisan Dragon at this Shop, in any order you like.',
+      'If one of them lets you place a new Dragon here, you may fire that one up too.'
+    ],
+    extra:'fire',
+    notes:[['warn','You do <b>not</b> get the Shop’s ability on an Enchant turn. That’s Gather-only.']],
+    next:'end'
+  },
+
+  end:{
+    branch:'close', kind:'step', phase:'Step 3 · Wrap up',
+    title:'End your turn',
+    numbered:true,
+    lines:[
+      '<b>Expand Town</b> — flip faceup any new Shops you drew this turn. They’re open for business.',
+      '<b>Check your limits</b> — down to <b>6 Artisan Dragons</b> in hand (extras go to the bottom of the deck), and <b>7 of each Good</b> at most. Coins and Fancy Dragons have no limit.',
+      '<b>Refresh</b> — top the Park back up to <b>5</b> faceup Artisan Dragons, and the Enchantment row back up to <b>5</b> cards.'
+    ],
+    notes:[['warn','If either deck runs empty while refreshing, the end of the game just triggered — everyone, you included, takes <b>one final turn</b>.']],
+    next:'done'
+  },
+  done:{
+    branch:'close', kind:'step', phase:'Done',
+    title:'Pass to the left',
+    lines:['That’s the whole turn. Play continues clockwise.'],
+    final:true
+  }
+};
+
+const ORDER = ['visit','occupied','toll','action','g_take','g_place_q','g_place','g_filled_q',
+  'g_newshop','g_fire_q','g_fire','g_shop_q','g_shop','e_gate','e_cast','e_fire_q','e_fire','end','done'];
+
+/* =========================================================
+   Turn rendering
+   ========================================================= */
+const flowEl = document.getElementById('flow');
+let choices = {};
+let fullMode = false;
+
+function extraHTML(n){ return n.extra === 'legend' ? legendHTML() : n.extra === 'fire' ? fireHTML() : ''; }
+function notesHTML(n){
+  if(!n.notes) return '';
+  return n.notes.map(([type, html]) =>
+    `<div class="note ${type}">${type === 'warn' ? '<span class="lbl">Watch out</span>' : ''}${html}</div>`).join('');
+}
+function stepHTML(n){
+  const cls = n.branch === 'gather' ? 'gather' : n.branch === 'enchant' ? 'enchant' : n.branch === 'close' ? 'close' : '';
+  return `<div class="card ${cls}">
+    <span class="phase">${n.phase}</span>
+    <h3>${n.title}</h3>
+    <ul class="lines${n.numbered ? ' numbered' : ''}">${n.lines.map(l => `<li>${l}</li>`).join('')}</ul>
+    ${extraHTML(n)}${notesHTML(n)}
+  </div>`;
+}
+function forkOpenHTML(id, n){
+  return `<div class="fork" data-fork="${id}">
+    <div class="q">${n.q}</div>
+    ${n.hint ? `<div class="hint">${n.hint}</div>` : ''}
+    <div class="opts">${n.opts.map((o,i) =>
+      `<button class="opt ${o.cls || ''}" data-fork="${id}" data-i="${i}">${o.label}<small>${o.sub}</small></button>`).join('')}</div>
+  </div>`;
+}
+function forkDoneHTML(id, n, i){
+  return `<div class="fork done">
+    <div class="q">${n.q}</div>
+    <div class="answered"><span class="picked">${n.opts[i].label}</span>
+    <button class="redo" data-redo="${id}">change</button></div>
+  </div>`;
+}
+function renderInteractive(){
+  let html = '', id = 'visit', guard = 0;
+  while(id && guard++ < 50){
+    const n = FLOW[id];
+    if(n.kind === 'fork'){
+      const pick = choices[id];
+      if(pick === undefined){ html += forkOpenHTML(id, n); break; }
+      html += forkDoneHTML(id, n, pick);
+      id = n.opts[pick].to;
+    } else {
+      html += stepHTML(n);
+      if(n.final) break;
+      id = n.next;
+    }
+  }
+  flowEl.innerHTML = html;
+}
+function renderFull(){
+  const groups = [
+    ['open',   'Phase 1 — every turn starts here', ''],
+    ['gather', 'Path A — Gather',  'gather'],
+    ['enchant','Path B — Enchant', 'enchant'],
+    ['close',  'Phase 3 — every turn ends here', 'close']
+  ];
+  let html = '';
+  groups.forEach(([branch, title, cls]) => {
+    html += `<div class="grouphead ${cls}">${title}</div>`;
+    ORDER.filter(id => FLOW[id].branch === branch).forEach(id => {
+      const n = FLOW[id];
+      if(n.kind === 'fork'){
+        html += `<div class="branchbox">
+          <div class="q">${n.q}</div>
+          ${n.hint ? `<div style="font-size:11.5px;color:var(--muted);margin-top:5px">${n.hint}</div>` : ''}
+          ${n.opts.map(o => `<div class="branchrow"><b>${o.label}</b> — ${o.sub} · go to “${FLOW[o.to].kind === 'fork' ? FLOW[o.to].q : FLOW[o.to].title}”</div>`).join('')}
+        </div>`;
+      } else html += stepHTML(n);
+    });
+  });
+  flowEl.innerHTML = html;
+}
+function render(){ fullMode ? renderFull() : renderInteractive(); }
+
+flowEl.addEventListener('click', e => {
+  const opt = e.target.closest('.opt');
+  if(opt){
+    choices[opt.dataset.fork] = Number(opt.dataset.i);
+    render();
+    const c = flowEl.children;
+    if(c.length) c[c.length - 1].scrollIntoView({behavior:'smooth', block:'nearest'});
+    return;
+  }
+  const redo = e.target.closest('.redo');
+  if(redo){
+    const cut = ORDER.indexOf(redo.dataset.redo);
+    Object.keys(choices).forEach(k => { if(ORDER.indexOf(k) >= cut) delete choices[k]; });
+    render();
+  }
+});
+document.getElementById('restart').addEventListener('click', () => {
+  choices = {};
+  if(fullMode){ fullMode = false; syncFullBtn(); }
+  render();
+  window.scrollTo({top:0, behavior:'smooth'});
+});
+function syncFullBtn(){
+  const b = document.getElementById('toggleFull');
+  b.textContent = fullMode ? 'Back to step-by-step' : 'Show the whole script';
+  b.classList.toggle('on', fullMode);
+}
+document.getElementById('toggleFull').addEventListener('click', () => {
+  fullMode = !fullMode; syncFullBtn(); render();
+});
+
+/* =========================================================
+   Tabs
+   ========================================================= */
+const PANELS = ['turn','setup','gallery','faq'];
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+    PANELS.forEach(p => { document.getElementById('panel-' + p).hidden = tab.dataset.panel !== p; });
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+});
+
+/* =========================================================
+   Setup, by player count
+   ========================================================= */
+const COUNTS = {
+  1:{deck:'Trim as for a <b>3-player</b> game — remove <b>6 Artisan Dragons</b> (1 of each Goods type).',
+     goods:'<span>Nobody starts with a Good.</span>',
+     town:'<b>12 Shop spaces</b>, and solo caps Town at 12 — once it’s full, stop drawing new Shops.', solo:true},
+  2:{deck:'Remove <b>12 Artisan Dragons</b> from the deck — <b>2 of each</b> Goods type.',
+     goods:'<span>Nobody starts with a Good.</span>',
+     town:'<b>12 Shop spaces</b> — the extra spots near the Park stay closed.'},
+  3:{deck:'Remove <b>6 Artisan Dragons</b> from the deck — <b>1 of each</b> Goods type.',
+     goods:'<span>Nobody starts with a Good.</span>',
+     town:'Up to <b>14 Shop spaces</b> — the marked spots near the Park are in play.'},
+  4:{deck:'<b>Use the full deck.</b> Remove nothing.',
+     goods:'The <b>4th player</b> takes <b>1 Good</b> of their choice to start.',
+     town:'Up to <b>14 Shop spaces</b> — the marked spots near the Park are in play.'},
+  5:{deck:'<b>Use the full deck.</b> Remove nothing.',
+     goods:'The <b>4th and 5th players</b> each take <b>1 Good</b> of their choice to start.',
+     town:'Up to <b>14 Shop spaces</b> — the marked spots near the Park are in play.'}
+};
+
+function setupSteps(n){
+  const c = COUNTS[n], solo = !!c.solo;
+  return [
+    {t:'Roll out Town and open the Starter Shops', l:[
+      'Put the <b>Town mat</b> in the middle of the table.',
+      'Place the <b>6 Starter Shops</b> faceup on any 6 Shop spaces.',
+      'Put each <b>Starter Artisan Dragon</b> on the Shop whose top-left icon matches it, covering that Shop’s <b>first slot</b>.'
+    ]},
+    {t:'Set out Goods and Coins', l:[
+      'Sort the <b>Goods tokens</b> into separate piles where everyone can reach them — on a big table, make two piles of each at opposite ends.',
+      'Pile the <b>Coins</b> on the <b>Fountain</b>.'
+    ]},
+    solo
+      ? {t:'Build the Shop deck', varies:true, l:[
+          'Solo uses a <b>fixed 10-card Shop deck</b> instead of the random build. Pull these Shops:',
+          '<b>Drake of Cakes · Fogo de Char · Funky Brewsters · Saving Throw · Oh My Gourd! · Tip the Scales · Maw &amp; Paw’s · Wishing Well · Nunya’s Beeswax · Draggin’ Tail Roost</b>',
+          'Shuffle those 10 and set the deck beside the mat.'
+        ]}
+      : {t:'Build the Shop deck', l:[
+          'Sort the remaining Shop cards by the <b>icon in the top-left</b>: one pile for each of the <b>6 Goods icons</b>, plus a <b>7th pile</b> for every other icon.',
+          'Turn all 7 piles facedown and shuffle each one separately.',
+          'Take <b>1 card from each of the 6 Goods piles</b> and <b>4 cards from the 7th pile</b> — that’s a <b>10-card Shop deck</b>.',
+          'Shuffle it and set it beside the Town mat.'
+        ]},
+    {t:'Build the Artisan deck and fill the Park', varies:true, l:[
+      c.deck,
+      'Shuffle everything that’s left into the <b>Artisan deck</b> and put it on its space next to the Fountain.',
+      'Reveal the <b>top 5</b> faceup into the <b>Park</b>.'
+    ]},
+    solo
+      ? {t:'Build the Fancy deck', varies:true, l:[
+          'Solo uses a <b>fixed 12-card Fancy deck</b>: <b>Taylor, Bubu, Chonkers, Dazzle, Frazzle, Matches, Pocus, Shimmer, Sparkle, Talisman, Todd, Twinkle</b>.',
+          'Shuffle those 12 and place the deck on its space by the Fountain.'
+        ]}
+      : {t:'Build the Fancy deck', l:[
+          'Shuffle all the <b>Fancy Dragon</b> cards together and place the deck on its space next to the Fountain.'
+        ]},
+    {t:'Lay out the Enchantments', l:[
+      'Pick <b>either the Purple or the Golden</b> Enchantment deck — <b>Purple is the recommended first game</b>. The other one goes back in the box.',
+      'Shuffle it onto its space <b>inside the Reputation track</b>.',
+      'Reveal the <b>top 5</b> in a faceup row beside the deck.'
+    ]},
+    solo
+      ? {t:'Set yourself up', varies:true, l:[
+          'Take <b>1 player token</b> for yourself — but keep the other tokens nearby, they get moved around as non-players.',
+          'Use the <b>Solo Mode player aid</b>, and put your heart marker at the start of the Reputation track.',
+          'Deal yourself <b>3 Artisan Dragons</b>.',
+          'Deal yourself <b>2 Fancy Dragons</b>, <b>keep 1</b>, and return the other to the bottom of the Fancy deck.',
+          '<b>Companions can’t be used in Solo Mode.</b>'
+        ]}
+      : {t:'Set up the players', varies:true, l:[
+          'Each player takes a <b>dragon token</b>, the matching <b>heart marker</b>, and a <b>player aid</b>. Unused colours go back in the box.',
+          'Gather the heart markers, reveal one at random — that player goes <b>first</b>. Then put every heart at the start of the <b>Reputation track</b>.',
+          'Deal each player <b>3 Artisan Dragons</b>.',
+          'Deal each player <b>2 Fancy Dragons</b>. Each keeps <b>1</b> and returns the other to the <b>bottom</b> of the Fancy deck.',
+          c.goods
+        ]}
+  ];
+}
+
+function renderSetup(n){
+  const c = COUNTS[n];
+  document.getElementById('deltas').innerHTML = `
+    <div class="delta"><span class="lbl">Artisan deck</span><div class="val">${c.deck}</div></div>
+    <div class="delta"><span class="lbl">Starting Goods</span><div class="val">${c.goods}</div></div>
+    <div class="delta"><span class="lbl">Town size</span><div class="val">${c.town}</div></div>`;
+
+  document.getElementById('soloNote').innerHTML = c.solo
+    ? `<div class="note warn" style="margin-top:16px"><span class="lbl">Solo mode</span>
+       Solo builds on the <b>3-player setup</b> with the swaps below. Its <b>turn flow differs</b> from the “Your turn” tab: after your action you reveal a Dragon for the non-players, may move their tokens, and may cast an Enchantment for them — page 18 of the rulebook has that sequence.</div>` : '';
+
+  document.getElementById('setupSteps').innerHTML = setupSteps(n).map((s, i) => `
+    <div class="step">
+      <div class="num">${i + 1}</div>
+      <div>
+        <h3>${s.t}${s.varies ? '<span class="varies">Varies by count</span>' : ''}</h3>
+        <ul class="lines">${s.l.map(x => `<li>${x}</li>`).join('')}</ul>
+      </div>
+    </div>`).join('');
+
+  const players = n === 1 ? 'You' : 'Each player';
+  document.getElementById('glance').innerHTML = `
+    <tr><td><b>Town mat</b></td><td>6 Starter Shops faceup, each with its Starter Dragon in the first slot</td></tr>
+    <tr><td><b>Shop deck</b></td><td>10 cards, facedown, beside the mat</td></tr>
+    <tr><td><b>Park</b></td><td>5 faceup Artisan Dragons next to the Artisan deck</td></tr>
+    <tr><td><b>Reputation track</b></td><td>Enchantment deck inside it, 5 Enchantments faceup in a row, all hearts at the start</td></tr>
+    <tr><td><b>Fountain</b></td><td>The Coin pile, plus the Artisan and Fancy decks on their marked spaces</td></tr>
+    <tr><td><b>${players}</b></td><td>3 Artisan Dragons in hand, 1 Fancy Dragon kept secret, a token, a player aid${n >= 4 ? ', and 1 starting Good for the 4th' + (n === 5 ? ' and 5th' : '') + ' player' : ''}</td></tr>
+    <tr><td><b>Town capacity</b></td><td>${n <= 2 ? '12 Shop spaces' : 'Up to 14 Shop spaces'}</td></tr>`;
+
+  document.getElementById('soloScore').innerHTML = c.solo ? `
+    <h2>Solo awards</h2>
+    <div class="scroller"><table>
+      <thead><tr><th>Final Reputation</th><th>Award</th></tr></thead>
+      <tbody>
+        <tr><td><b>0–74 ❤</b></td><td>Shopkeeper</td></tr>
+        <tr><td><b>75–89 ❤</b></td><td>Flamekeeper</td></tr>
+        <tr><td><b>90+ ❤</b></td><td>Master of Flame</td></tr>
+      </tbody>
+    </table></div>` : '';
+}
+document.getElementById('pcount').addEventListener('click', e => {
+  const b = e.target.closest('.pc');
+  if(!b) return;
+  document.querySelectorAll('.pc').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  renderSetup(Number(b.dataset.n));
+});
+
+/* =========================================================
+   Gallery — the rulebook, page by page
+   ========================================================= */
+const PAGES = [
+  'Cover',
+  'Welcome to Town · Contents',
+  'Components',
+  'Setup · Town, Goods, Shop deck, Artisan Dragons',
+  'Setup · Fancy Dragons, Enchantments, Players',
+  'Overview · Taking a Turn · Visiting a Shop',
+  'Gathering · Gather Goods',
+  'Gathering · Place a Dragon · Rewards · Filling a Shop',
+  'Gathering · Fire Up · Shop Ability · Giving Gifts',
+  'Enchanting · Cast an Enchantment',
+  'Enchanting · Fire Up All · Clarifications · Reserving',
+  'Ending Your Turn',
+  'End of the Game · Fancy Dragons',
+  'Abilities · Artisan Dragons',
+  'Abilities · Shops',
+  'Abilities · Shops continued · Fancy Dragons',
+  'Companions (optional rules)',
+  'Solo Mode',
+  'Solo · Unlocking Achievements',
+  'Credits'
+];
+const pad = i => String(i + 1).padStart(2, '0');
+
+document.getElementById('grid').innerHTML = PAGES.map((t, i) => `
+  <div class="gcard" data-i="${i}">
+    <img src="flamecraft/t${pad(i)}.jpg" alt="Rulebook page ${i + 1}: ${t}" loading="lazy">
+    <div class="gcap"><span class="gnum">Page ${i + 1}</span><div class="gttl">${t}</div></div>
+  </div>`).join('');
+
+document.getElementById('lbThumbs').innerHTML = PAGES.map((t, i) =>
+  `<img class="lb-thumb" data-i="${i}" src="flamecraft/t${pad(i)}.jpg" alt="Page ${i + 1}" loading="lazy">`).join('');
+
+const lb = document.getElementById('lb'), lbImg = document.getElementById('lbImg');
+let cur = 0;
+
+function show(i){
+  cur = (i + PAGES.length) % PAGES.length;
+  lbImg.src = `flamecraft/p${pad(cur)}.jpg`;
+  lbImg.alt = `Rulebook page ${cur + 1}: ${PAGES[cur]}`;
+  document.getElementById('lbNum').textContent = `Page ${cur + 1} / ${PAGES.length}`;
+  document.getElementById('lbTtl').textContent = PAGES[cur];
+  document.querySelectorAll('.lb-thumb').forEach((t, k) => t.classList.toggle('active', k === cur));
+  const active = document.querySelector('.lb-thumb.active');
+  if(active) active.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
+  document.getElementById('lbStage').scrollTop = 0;
+}
+function openLb(i){ show(i); lb.classList.add('open'); document.body.style.overflow = 'hidden'; }
+function closeLb(){ lb.classList.remove('open'); document.body.style.overflow = ''; }
+
+document.getElementById('grid').addEventListener('click', e => {
+  const c = e.target.closest('.gcard');
+  if(c) openLb(Number(c.dataset.i));
+});
+document.getElementById('lbThumbs').addEventListener('click', e => {
+  if(e.target.classList.contains('lb-thumb')) show(Number(e.target.dataset.i));
+});
+document.getElementById('lbPrev').addEventListener('click', () => show(cur - 1));
+document.getElementById('lbNext').addEventListener('click', () => show(cur + 1));
+document.getElementById('lbClose').addEventListener('click', closeLb);
+lb.addEventListener('click', e => { if(e.target === lb) closeLb(); });
+document.addEventListener('keydown', e => {
+  if(!lb.classList.contains('open')) return;
+  if(e.key === 'Escape') closeLb();
+  if(e.key === 'ArrowLeft') show(cur - 1);
+  if(e.key === 'ArrowRight') show(cur + 1);
+});
+let touchX = null;
+const stage = document.getElementById('lbStage');
+stage.addEventListener('touchstart', e => { touchX = e.changedTouches[0].clientX; }, {passive:true});
+stage.addEventListener('touchend', e => {
+  if(touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(Math.abs(dx) > 55) show(cur + (dx < 0 ? 1 : -1));
+  touchX = null;
+}, {passive:true});
+
+/* =========================================================
+   FAQ
+   -----------------------------------------------------------
+   TO ADD A QUESTION: append an entry to this array. That's it.
+   Shape: {cat: 'Category name', q: 'The question?', a: 'The answer.'}
+   New categories appear automatically, in first-seen order.
+   ========================================================= */
+const FAQ = [
+  {cat:'Moving around Town',
+   q:'Can I visit the same Shop two turns in a row?',
+   a:'No. You must move to a Shop <b>different</b> from the one you visited on your previous turn. Any other Shop in Town is fair game though — there’s no adjacency or distance rule, so you can cross the whole board.'},
+  {cat:'Moving around Town',
+   q:'Someone’s token is already on the Shop I want. Can I still go there?',
+   a:'Yes, if you pay the toll. Give <b>each</b> player standing there <b>1 Good of your choice or 1 Coin</b> from your own supply. If you can’t cover every player there, you can’t visit — pick a different Shop. <b>Flagons &amp; Dragons</b> is the exception: joining anyone there is free.'},
+  {cat:'Moving around Town',
+   q:'Do I have to move at all?',
+   a:'Yes. Visiting a Shop is mandatory and always happens <b>before</b> you choose Gather or Enchant. There is no option to stay where you are.'},
+
+  {cat:'Gather vs Enchant',
+   q:'Can I Gather and Enchant on the same turn?',
+   a:'No. Each turn you pick exactly one of the two at the Shop you visited.'},
+  {cat:'Gather vs Enchant',
+   q:'Can I use the Shop’s printed ability when I Enchant?',
+   a:'No — Shop abilities are <b>Gather-only</b>, and they’re the last step of a Gather. Enchanting gives you the Enchantment’s rewards and the chance to fire up every Dragon instead.'},
+  {cat:'Gather vs Enchant',
+   q:'How many Dragons can I fire up?',
+   a:'It depends which action you took. <b>Gather:</b> exactly one Dragon at that Shop. <b>Enchant:</b> every Dragon at that Shop, in any order you like.'},
+  {cat:'Gather vs Enchant',
+   q:'What if I can’t afford any Enchantment here?',
+   a:'Then you can’t Enchant at this Shop — Gather instead. To Enchant you need <b>both</b> a faceup Enchantment matching the Shop’s icon (a rainbow Shop takes any, and your reserved Enchantment counts) <b>and</b> the Goods to pay its cost.'},
+  {cat:'Gather vs Enchant',
+   q:'Which Shops can never be Enchanted?',
+   a:'Shops whose top-left icon is a <b>Dragon</b> or a <b>Coin</b> — no Enchantment carries those icons. On top of that, no Shop may ever hold more than <b>3 Enchantments</b>, rainbow Shops included.'},
+  {cat:'Gather vs Enchant',
+   q:'What does an Enchantment actually do once it’s tucked?',
+   a:'It permanently adds <b>1 Good</b> to that Shop’s output. Everyone who Gathers there afterwards gets the extra Good — including your opponents.'},
+
+  {cat:'Dragons and slots',
+   q:'Do Dragon slots have to be filled left to right?',
+   a:'No. Fill any empty slot in any order, as long as your Dragon’s icon matches one of the icons on that slot.'},
+  {cat:'Dragons and slots',
+   q:'What if a slot shows several icons? Or a rainbow?',
+   a:'Several icons — your Dragon only needs to match <b>any one</b> of them. A <b>rainbow</b> slot accepts any Dragon at all.'},
+  {cat:'Dragons and slots',
+   q:'What happens when I fill a Shop’s last empty slot?',
+   a:'Draw the top Shop card <b>without looking</b>, place it <b>facedown</b> on any empty Town spot, and flip it faceup at the end of your turn. If Town is already full, skip it entirely.'},
+  {cat:'Dragons and slots',
+   q:'How big can Town get?',
+   a:'<b>12</b> Shop spaces at 1–2 players. Up to <b>14</b> at 3–5 players, using the marked spots near the Park. Solo caps at 12.'},
+  {cat:'Dragons and slots',
+   q:'What is “the Park”?',
+   a:'The <b>5 faceup Artisan Dragons</b> next to the Artisan deck. Any time something says “draw an Artisan Dragon,” you may take one of those faceup cards <i>or</i> the top card of the deck — your choice.'},
+
+  {cat:'Goods, Coins and limits',
+   q:'Are Coins the same as Goods?',
+   a:'No, and this one trips people up constantly. When an effect gives you “a Good of your choice,” you <b>cannot</b> take a Coin. But when you <b>spend</b>, Coins are wild — a Coin pays for any Good, and several Coins can each cover a different Good. The exception is a card showing the 🚫 no-coin symbol.'},
+  {cat:'Goods, Coins and limits',
+   q:'What are leftover Coins worth?',
+   a:'<b>1 ❤ each</b> at the end of the game, returned to the Fountain during final scoring.'},
+  {cat:'Goods, Coins and limits',
+   q:'What are my hand and supply limits?',
+   a:'<b>6 Artisan Dragons</b> in hand and <b>7 of each Goods type</b>. Both are checked only at the very <b>end</b> of your turn — so you can blow past them mid-turn and spend the excess before cleanup. There’s no limit at all on Coins or Fancy Dragons.'},
+  {cat:'Goods, Coins and limits',
+   q:'Where do gifts come from?',
+   a:'Your own personal supply, and you may gift Coins in place of Goods. If an ability rewards you for gifting with something other than Reputation, that reward comes from the <b>general supply</b> — not from the player you gave to.'},
+
+  {cat:'Fancy Dragons and scoring',
+   q:'What’s the difference between Sun ☀ and Moon 🌙 Fancy Dragons?',
+   a:'<b>Sun</b> Dragons score <b>during</b> the game: once you’ve met the goal, reveal it at any point on your turn to take the reward. Each scores once, then stays faceup in front of you. <b>Moon</b> Dragons stay hidden and score only at the very end.'},
+  {cat:'Fancy Dragons and scoring',
+   q:'Can I use Coins to complete a Fancy Dragon’s goal?',
+   a:'No. At game end you return <b>all</b> Coins for ❤ <b>first</b>, and only then score Fancy Dragons — the Coins are already gone when the goals get checked.'},
+  {cat:'Fancy Dragons and scoring',
+   q:'When exactly does the game end?',
+   a:'The instant the <b>last card of either the Artisan deck or the Enchantment deck</b> is drawn or revealed. Everyone then takes <b>one final turn</b>, including whoever triggered it.'},
+  {cat:'Fancy Dragons and scoring',
+   q:'Who wins a tie?',
+   a:'The tied player with the most <b>Artisan Dragons left in hand</b>. Still tied? Most <b>leftover Goods</b>. Still tied after that? Share the victory.'},
+
+  {cat:'Setting up',
+   q:'Purple or Golden Enchantments?',
+   a:'Pick one deck and put the other back in the box. <b>Purple</b> is the rulebook’s recommendation for a first game.'},
+  {cat:'Setting up',
+   q:'Which Artisan Dragons get removed at low player counts?',
+   a:'<b>2 players:</b> remove 12 (2 of each Goods type). <b>3 players:</b> remove 6 (1 of each). <b>4–5 players:</b> use the whole deck. Solo follows the 3-player trim.'},
+  {cat:'Setting up',
+   q:'Who starts the game with Goods?',
+   a:'Only the <b>4th and 5th players</b> — each takes 1 Good of their choice. Everybody else starts empty-handed.'}
+];
+
+const faqList = document.getElementById('faqList');
+function renderFAQ(filter){
+  const f = (filter || '').trim().toLowerCase();
+  const hits = f ? FAQ.filter(x => (x.q + ' ' + x.a + ' ' + x.cat).toLowerCase().includes(f)) : FAQ;
+  if(!hits.length){
+    faqList.innerHTML = `<div class="noresult">Nothing matches “${filter}”. Ask, and it’ll be here next time.</div>`;
+    return;
+  }
+  const cats = [...new Set(hits.map(x => x.cat))];
+  faqList.innerHTML = cats.map(cat => `
+    <div class="faqcat">${cat}</div>
+    ${hits.filter(x => x.cat === cat).map(x => `
+      <details class="qa"${f ? ' open' : ''}>
+        <summary>${x.q}</summary>
+        <div class="ans">${x.a}</div>
+      </details>`).join('')}`).join('');
+}
+document.getElementById('faqSearch').addEventListener('input', e => renderFAQ(e.target.value));
+
+/* boot */
+render();
+syncFullBtn();
+renderSetup(4);
+renderFAQ('');
+</script>
+</body>
+</html>

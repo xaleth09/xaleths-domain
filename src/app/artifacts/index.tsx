@@ -52,6 +52,13 @@ const ARTIFACTS: Artifact[] = [
     url: '/napa-wineries.html',
     tag: 'GUIDE',
   },
+  {
+    id: 'flamecraft',
+    title: 'Flamecraft — Turn, Setup, Rulebook & FAQ',
+    description: 'Table reference for the board game Flamecraft. An interactive turn script that walks you through every fork — Gather or Enchant, place a Dragon, fire up, shop ability — one decision at a time, with a full linear version on a toggle. Plus a setup guide keyed to player count (1–5, solo included), the complete 20-page rulebook as a browsable gallery, and a searchable FAQ that grows as questions come up.',
+    url: '/flamecraft.html',
+    tag: 'GUIDE',
+  },
 ];
 
 export default function ArtifactsScreen() {
