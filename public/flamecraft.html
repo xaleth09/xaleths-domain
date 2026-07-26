@@ -271,6 +271,67 @@
   .qa .ans{padding:0 18px 17px 42px;font-size:12.5px;color:var(--sec);line-height:1.65}
   .noresult{font-size:12.5px;color:var(--muted);padding:24px 4px;text-align:center}
 
+  /* ---------- play order ---------- */
+  .roster{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+  .prow{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:center;
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 11px;
+    transition:border-color .18s,background .18s}
+  .prow.isnow{border-color:var(--gold-lt);background:rgba(224,169,74,0.08)}
+  .pseat{font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:700;
+    color:var(--gold);text-align:center}
+  .pname{font-family:"DM Mono",monospace;font-size:13.5px;color:var(--white);background:none;
+    border:none;outline:none;width:100%;padding:6px 0}
+  .pname::placeholder{color:var(--muted)}
+  .pname:focus{color:var(--gold-lt)}
+  .pmove{display:flex;gap:4px}
+  .mv{background:none;border:1px solid var(--line);color:var(--sec);border-radius:6px;
+    width:30px;height:30px;font-size:12px;cursor:pointer;transition:all .15s;
+    display:flex;align-items:center;justify-content:center}
+  .mv:hover:not(:disabled){border-color:var(--gold-lt);color:var(--gold-lt)}
+  .mv:disabled{opacity:.22;cursor:default}
+
+  /* ---------- now playing ---------- */
+  .now{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-top:18px;
+    background:var(--surface);border:1px solid var(--line2);border-radius:10px;padding:13px 16px}
+  .now .who{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:17px;color:var(--white)}
+  .now .lbl{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);display:block}
+  .now .nxt{font-size:12px;color:var(--sec)}
+  .now .nxt b{color:var(--gold-lt);font-weight:500}
+  .now .edit{margin-left:auto;font-size:11px;color:var(--muted);background:none;border:none;
+    cursor:pointer;text-decoration:underline;padding:0}
+  .now .edit:hover{color:var(--gold-lt)}
+
+  /* ---------- end turn ---------- */
+  .endturn{margin-top:16px;width:100%;font-family:"Space Grotesk",sans-serif;font-size:14px;
+    font-weight:700;letter-spacing:.04em;color:#241708;
+    background:linear-gradient(180deg,var(--gold-lt),var(--gold));
+    border:1px solid var(--gold-lt);border-radius:10px;padding:17px 14px;cursor:pointer;
+    box-shadow:0 0 18px rgba(224,169,74,0.28);transition:box-shadow .18s}
+  .endturn:hover{box-shadow:0 0 28px rgba(224,169,74,0.5)}
+
+  /* ---------- sticky flow bar ---------- */
+  .flowbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:none;
+    align-items:center;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    background:rgba(18,16,14,0.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    border-top:1px solid var(--line2)}
+  .flowbar.on{display:flex}
+  .fbcount{font-size:11px;color:var(--muted);margin:0 auto;letter-spacing:.08em;text-align:center}
+  .fb{font-family:"Space Grotesk",sans-serif;font-size:11.5px;font-weight:600;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--white);background:var(--surface2);
+    border:1px solid var(--line2);border-radius:100px;padding:12px 18px;cursor:pointer;
+    transition:all .16s;white-space:nowrap}
+  .fb:hover:not(:disabled){border-color:var(--gold-lt);color:var(--gold-lt)}
+  .fb:disabled{opacity:.28;cursor:default}
+  body.hasbar{padding-bottom:100px}
+
+  .flash{animation:flash 1.2s ease}
+  @keyframes flash{0%{box-shadow:0 0 0 0 rgba(224,169,74,0.5)}100%{box-shadow:0 0 0 16px rgba(224,169,74,0)}}
+
+  @media(max-width:560px){
+    .opt{flex:1 1 100%;padding:16px 15px}
+    .fb{padding:12px 14px;font-size:11px}
+  }
+
   footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);
     font-size:11px;color:var(--muted);line-height:1.7}
 </style>
@@ -303,8 +364,8 @@
       <span class="lbl">True at any point in your turn</span>
       You may reveal a <b>Sun&nbsp;☀ Fancy Dragon</b> whose goal you’ve already met and take its reward — once per card, at any moment on your turn. <b>Moon&nbsp;🌙 Fancy Dragons</b> stay hidden until the game ends.
     </div>
+    <div id="nowPlaying"></div>
     <div class="bar">
-      <button class="btn" id="restart">↺ Start the turn over</button>
       <button class="btn" id="toggleFull">Show the whole script</button>
     </div>
     <div class="stack" id="flow"></div>
@@ -323,6 +384,14 @@
     </div>
     <div class="deltas" id="deltas"></div>
     <div id="soloNote"></div>
+
+    <h2>Play order</h2>
+    <p class="sub">Name everyone in seating order. The turn script then names who’s up next every time a turn ends. Saved on this device, so a reload mid-game won’t lose it.</p>
+    <div class="roster" id="roster"></div>
+    <div class="bar">
+      <button class="btn" id="shuffleOrder">🎲 Randomise the order</button>
+      <button class="btn" id="clearOrder">Clear names</button>
+    </div>
 
     <h2>Setup, step by step</h2>
     <div class="steps" id="setupSteps"></div>
@@ -384,6 +453,13 @@
   </footer>
 </div>
 
+<!-- sticky turn controls -->
+<div class="flowbar" id="flowbar">
+  <button class="fb" id="fbBack">← Back</button>
+  <span class="fbcount" id="fbCount"></span>
+  <button class="fb" id="fbRestart">↺ Restart</button>
+</div>
+
 <!-- lightbox -->
 <div class="lb" id="lb">
   <div class="lb-top">
@@ -433,6 +509,59 @@ function fireHTML(){
   return `<div class="fire">${FIRE.map(([c,n,t]) =>
     `<div class="fr"><span class="g"><span class="dot" style="background:${c};margin-top:0"></span>${n}</span><span>${t}</span></div>`
   ).join('')}</div>`;
+}
+
+/* =========================================================
+   Play order — who's up next
+   ========================================================= */
+const RKEY = 'flamecraft-roster';
+let roster = (function load(){
+  try{
+    const r = JSON.parse(localStorage.getItem(RKEY));
+    if(r && Array.isArray(r.names)) return {names:r.names.map(String), current:Math.max(0, r.current|0)};
+  }catch(e){}
+  return {names:[], current:0};
+})();
+function saveRoster(){ try{ localStorage.setItem(RKEY, JSON.stringify(roster)); }catch(e){} }
+
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const seatName = i => (roster.names[i] || '').trim() || `Player ${i + 1}`;
+const seats = () => roster.names.length;
+const nextSeat = () => seats() ? (roster.current + 1) % seats() : 0;
+
+// Names survive a change of player count — drop to 2 and back to 5 and they're all still there.
+let nameStash = roster.names.slice();
+function syncRosterCount(n){
+  roster.names.forEach((nm, i) => { if(nm) nameStash[i] = nm; });
+  const names = [];
+  for(let i = 0; i < n; i++) names.push(roster.names[i] || nameStash[i] || '');
+  roster.names = names;
+  if(roster.current >= n) roster.current = 0;
+  saveRoster();
+}
+
+function renderRoster(){
+  const n = seats();
+  document.getElementById('roster').innerHTML = roster.names.map((nm, i) => `
+    <div class="prow${i === roster.current ? ' isnow' : ''}">
+      <span class="pseat">${i + 1}</span>
+      <input class="pname" data-i="${i}" value="${esc(nm)}" placeholder="Player ${i + 1}"
+             maxlength="24" aria-label="Name of player ${i + 1}">
+      <span class="pmove">
+        <button class="mv" data-mv="-1" data-i="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
+        <button class="mv" data-mv="1"  data-i="${i}" ${i === n - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
+      </span>
+    </div>`).join('');
+}
+
+function renderNow(){
+  const el = document.getElementById('nowPlaying'), n = seats();
+  if(!n){ el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="now">
+    <div><span class="lbl">Now playing</span><span class="who">${esc(seatName(roster.current))}</span></div>
+    <div class="nxt">${n === 1 ? 'Solo — every turn is yours' : `Up next <b>${esc(seatName(nextSeat()))}</b>`}</div>
+    <button class="edit" data-goto="setup">edit play order</button>
+  </div>`;
 }
 
 /* =========================================================
@@ -627,9 +756,22 @@ const FLOW = {
   },
   done:{
     branch:'close', kind:'step', phase:'Done',
-    title:'Pass to the left',
+    title:'Turn complete',
+    final:true,
     lines:['That’s the whole turn. Play continues clockwise.'],
-    final:true
+    linesFn(){
+      const n = seats();
+      if(n > 1) return [`Play passes to <b>${esc(seatName(nextSeat()))}</b>.`,
+                        'Hand over below — it resets the script for their turn.'];
+      if(n === 1) return ['Solo — reveal a Dragon for the non-players and move their tokens (rulebook p.18), then take your next turn.'];
+      return ['Play continues clockwise. Set a play order in the Setup tab and this will name who’s next.'];
+    },
+    htmlFn(){
+      const n = seats();
+      if(!n) return '';
+      return `<button class="endturn" id="endTurn">${
+        n > 1 ? `End turn → ${esc(seatName(nextSeat()))}` : 'Start your next turn'}</button>`;
+    }
   }
 };
 
@@ -641,6 +783,7 @@ const ORDER = ['visit','occupied','toll','action','g_take','g_place_q','g_place'
    ========================================================= */
 const flowEl = document.getElementById('flow');
 let choices = {};
+let answered = [];   // fork ids in the order they were answered — drives Back
 let fullMode = false;
 
 function extraHTML(n){ return n.extra === 'legend' ? legendHTML() : n.extra === 'fire' ? fireHTML() : ''; }
@@ -651,11 +794,13 @@ function notesHTML(n){
 }
 function stepHTML(n){
   const cls = n.branch === 'gather' ? 'gather' : n.branch === 'enchant' ? 'enchant' : n.branch === 'close' ? 'close' : '';
+  const lines = (!fullMode && n.linesFn) ? n.linesFn() : n.lines;
+  const tail  = (!fullMode && n.htmlFn)  ? n.htmlFn()  : '';
   return `<div class="card ${cls}">
     <span class="phase">${n.phase}</span>
     <h3>${n.title}</h3>
-    <ul class="lines${n.numbered ? ' numbered' : ''}">${n.lines.map(l => `<li>${l}</li>`).join('')}</ul>
-    ${extraHTML(n)}${notesHTML(n)}
+    <ul class="lines${n.numbered ? ' numbered' : ''}">${lines.map(l => `<li>${l}</li>`).join('')}</ul>
+    ${extraHTML(n)}${notesHTML(n)}${tail}
   </div>`;
 }
 function forkOpenHTML(id, n){
@@ -713,30 +858,73 @@ function renderFull(){
   });
   flowEl.innerHTML = html;
 }
-function render(){ fullMode ? renderFull() : renderInteractive(); }
+function render(){ fullMode ? renderFull() : renderInteractive(); renderBar(); }
 
-flowEl.addEventListener('click', e => {
-  const opt = e.target.closest('.opt');
-  if(opt){
-    choices[opt.dataset.fork] = Number(opt.dataset.i);
-    render();
-    const c = flowEl.children;
-    if(c.length) c[c.length - 1].scrollIntoView({behavior:'smooth', block:'nearest'});
-    return;
-  }
-  const redo = e.target.closest('.redo');
-  if(redo){
-    const cut = ORDER.indexOf(redo.dataset.redo);
-    Object.keys(choices).forEach(k => { if(ORDER.indexOf(k) >= cut) delete choices[k]; });
-    render();
-  }
-});
-document.getElementById('restart').addEventListener('click', () => {
-  choices = {};
+/* --- scrolling: keep the target clear of the sticky tab bar --- */
+const STICKY = 84;
+function scrollToEl(el, flash){
+  if(!el) return;
+  const top = el.getBoundingClientRect().top + window.pageYOffset - STICKY;
+  window.scrollTo({top: Math.max(0, top), behavior:'smooth'});
+  if(flash){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+}
+function scrollToFork(id){
+  requestAnimationFrame(() => scrollToEl(flowEl.querySelector(`[data-fork="${id}"]`), true));
+}
+
+/* --- answering, and stepping back --- */
+function answer(id, i){
+  const before = flowEl.children.length;   // the open fork is the last child
+  choices[id] = i;
+  if(!answered.includes(id)) answered.push(id);
+  render();
+  // the fork collapses in place, so the first newly revealed card sits at `before`
+  requestAnimationFrame(() => scrollToEl(flowEl.children[Math.min(before, flowEl.children.length - 1)], false));
+}
+function rewindTo(id){
+  const at = answered.indexOf(id);
+  if(at === -1) return;
+  answered.splice(at).forEach(k => delete choices[k]);
+  render();
+  scrollToFork(id);
+}
+function goBack(){
+  const last = answered[answered.length - 1];
+  if(last !== undefined) rewindTo(last);
+}
+function restart(){
+  choices = {}; answered = [];
   if(fullMode){ fullMode = false; syncFullBtn(); }
   render();
   window.scrollTo({top:0, behavior:'smooth'});
+}
+
+flowEl.addEventListener('click', e => {
+  const opt = e.target.closest('.opt');
+  if(opt){ answer(opt.dataset.fork, Number(opt.dataset.i)); return; }
+
+  const redo = e.target.closest('.redo');
+  if(redo){ rewindTo(redo.dataset.redo); return; }
+
+  if(e.target.closest('#endTurn')){
+    if(seats()){ roster.current = nextSeat(); saveRoster(); renderNow(); renderRoster(); }
+    restart();
+  }
 });
+
+/* --- sticky turn controls --- */
+function renderBar(){
+  const on = !fullMode && !document.getElementById('panel-turn').hidden;
+  document.getElementById('flowbar').classList.toggle('on', on);
+  document.body.classList.toggle('hasbar', on);
+  document.getElementById('fbBack').disabled = answered.length === 0;
+  document.getElementById('fbCount').textContent =
+    answered.length === 0 ? 'start of turn'
+    : `${answered.length} choice${answered.length > 1 ? 's' : ''} made`;
+}
+document.getElementById('fbBack').addEventListener('click', goBack);
+document.getElementById('fbRestart').addEventListener('click', restart);
+
 function syncFullBtn(){
   const b = document.getElementById('toggleFull');
   b.textContent = fullMode ? 'Back to step-by-step' : 'Show the whole script';
@@ -744,6 +932,48 @@ function syncFullBtn(){
 }
 document.getElementById('toggleFull').addEventListener('click', () => {
   fullMode = !fullMode; syncFullBtn(); render();
+  window.scrollTo({top:0, behavior:'smooth'});
+});
+
+/* --- play order controls --- */
+document.getElementById('nowPlaying').addEventListener('click', e => {
+  const g = e.target.closest('[data-goto]');
+  if(g) document.querySelector(`.tab[data-panel="${g.dataset.goto}"]`).click();
+});
+const rosterEl = document.getElementById('roster');
+rosterEl.addEventListener('input', e => {
+  const f = e.target.closest('.pname');
+  if(!f) return;
+  roster.names[Number(f.dataset.i)] = f.value;
+  saveRoster();
+  renderNow();
+  if(!fullMode) render();     // keeps "End turn → <name>" current
+});
+rosterEl.addEventListener('click', e => {
+  const b = e.target.closest('.mv');
+  if(!b) return;
+  const i = Number(b.dataset.i), j = i + Number(b.dataset.mv);
+  if(j < 0 || j >= seats()) return;
+  [roster.names[i], roster.names[j]] = [roster.names[j], roster.names[i]];
+  if(roster.current === i) roster.current = j;
+  else if(roster.current === j) roster.current = i;
+  saveRoster(); renderRoster(); renderNow();
+  if(!fullMode) render();
+});
+document.getElementById('shuffleOrder').addEventListener('click', () => {
+  for(let i = roster.names.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [roster.names[i], roster.names[j]] = [roster.names[j], roster.names[i]];
+  }
+  roster.current = 0;
+  saveRoster(); renderRoster(); renderNow();
+  if(!fullMode) render();
+});
+document.getElementById('clearOrder').addEventListener('click', () => {
+  roster.names = roster.names.map(() => '');
+  roster.current = 0;
+  saveRoster(); renderRoster(); renderNow();
+  if(!fullMode) render();
 });
 
 /* =========================================================
@@ -754,6 +984,7 @@ document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
     PANELS.forEach(p => { document.getElementById('panel-' + p).hidden = tab.dataset.panel !== p; });
+    renderBar();
     window.scrollTo({top:0, behavior:'smooth'});
   });
 });
@@ -841,6 +1072,9 @@ function setupSteps(n){
 
 function renderSetup(n){
   const c = COUNTS[n];
+  syncRosterCount(n);
+  renderRoster();
+  renderNow();
   document.getElementById('deltas').innerHTML = `
     <div class="delta"><span class="lbl">Artisan deck</span><div class="val">${c.deck}</div></div>
     <div class="delta"><span class="lbl">Starting Goods</span><div class="val">${c.goods}</div></div>
@@ -885,6 +1119,7 @@ document.getElementById('pcount').addEventListener('click', e => {
   if(!b) return;
   document.querySelectorAll('.pc').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   renderSetup(Number(b.dataset.n));
+  if(!fullMode) render();     // "End turn → <name>" follows the new count
 });
 
 /* =========================================================
@@ -1076,10 +1311,13 @@ function renderFAQ(filter){
 }
 document.getElementById('faqSearch').addEventListener('input', e => renderFAQ(e.target.value));
 
-/* boot */
-render();
+/* boot — restore the saved player count if there is one */
+const bootCount = Math.min(5, Math.max(1, seats() || 4));
+document.querySelectorAll('.pc').forEach(b =>
+  b.setAttribute('aria-pressed', String(Number(b.dataset.n) === bootCount)));
+renderSetup(bootCount);
 syncFullBtn();
-renderSetup(4);
+render();
 renderFAQ('');
 </script>
 </body>
