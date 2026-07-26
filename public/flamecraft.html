@@ -916,19 +916,19 @@ const pad = i => String(i + 1).padStart(2, '0');
 
 document.getElementById('grid').innerHTML = PAGES.map((t, i) => `
   <div class="gcard" data-i="${i}">
-    <img src="flamecraft/t${pad(i)}.jpg" alt="Rulebook page ${i + 1}: ${t}" loading="lazy">
+    <img src="/flamecraft/t${pad(i)}.jpg" alt="Rulebook page ${i + 1}: ${t}" loading="lazy">
     <div class="gcap"><span class="gnum">Page ${i + 1}</span><div class="gttl">${t}</div></div>
   </div>`).join('');
 
 document.getElementById('lbThumbs').innerHTML = PAGES.map((t, i) =>
-  `<img class="lb-thumb" data-i="${i}" src="flamecraft/t${pad(i)}.jpg" alt="Page ${i + 1}" loading="lazy">`).join('');
+  `<img class="lb-thumb" data-i="${i}" src="/flamecraft/t${pad(i)}.jpg" alt="Page ${i + 1}" loading="lazy">`).join('');
 
 const lb = document.getElementById('lb'), lbImg = document.getElementById('lbImg');
 let cur = 0;
 
 function show(i){
   cur = (i + PAGES.length) % PAGES.length;
-  lbImg.src = `flamecraft/p${pad(cur)}.jpg`;
+  lbImg.src = `/flamecraft/p${pad(cur)}.jpg`;
   lbImg.alt = `Rulebook page ${cur + 1}: ${PAGES[cur]}`;
   document.getElementById('lbNum').textContent = `Page ${cur + 1} / ${PAGES.length}`;
   document.getElementById('lbTtl').textContent = PAGES[cur];
