@@ -19,6 +19,13 @@ export default function HomeScreen() {
           <View style={styles.nav}>
             <Pressable
               style={({ pressed }) => [styles.navButton, pressed && styles.navButtonPressed]}
+              onPress={() => router.push('/loadout')}
+            >
+              <Text style={styles.navButtonText}>LOADOUT</Text>
+              <Text style={styles.navButtonArrow}>→</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.navButton, pressed && styles.navButtonPressed]}
               onPress={() => router.push('/artifacts')}
             >
               <Text style={styles.navButtonText}>ARTIFACTS</Text>

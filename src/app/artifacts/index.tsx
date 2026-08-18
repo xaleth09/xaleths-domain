@@ -17,6 +17,14 @@ type Artifact = {
 
 const ARTIFACTS: Artifact[] = [
   {
+    id: 'loadout',
+    title: 'Loadout',
+    description: 'The doing console — goals with honest pacing, a template week with protected rest blocks, a five-item Today list, and the nightly check-in. Built to earn the stop signal, not to maximize throughput. Native page, not a standalone artifact.',
+    url: '/loadout',
+    tag: 'CONSOLE',
+    requiresAuth: true,
+  },
+  {
     id: 'team-splitter',
     title: 'Team Splitter',
     description: 'Every valid way to split the player pool into two 3-person core teams for 9-ball league play — both teams kept in Gold or Silver (never Platinum), leftovers as rating-free subs. Enforces Robbi & Aaron on opposite teams and the higher-rated-only sub rule, with a balance thermometer, division-matchup views, and a "same team" player filter.',

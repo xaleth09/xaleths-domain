@@ -1,0 +1,121 @@
+{
+  "schema": "loadout/v1",
+  "updated": "2026-08-18",
+  "note": "Week-grid times are a STARTING POINT invented at seed — Robbi replaces them. Sample tasks (R-101+) are placeholders, not his real list. Goals are real. Metric entries intentionally start empty.",
+  "idSpace": { "prefix": "R", "next": 105 },
+  "goals": [
+    {
+      "id": "G-001",
+      "title": "Physical therapy",
+      "domain": "health",
+      "type": "adherence",
+      "status": "active",
+      "created": "2026-08-17",
+      "target": { "count": 4, "period": "week" },
+      "supports": ["G-004"],
+      "history": []
+    },
+    {
+      "id": "G-002",
+      "title": "Strict pull-ups",
+      "domain": "fitness",
+      "type": "threshold",
+      "status": "active",
+      "created": "2026-08-17",
+      "target": { "value": 5, "unit": "reps", "mode": "consecutive" },
+      "baseline": { "value": 1, "date": "2026-08-17" },
+      "scaledAs": "Negatives / band-assisted",
+      "supports": ["G-004"],
+      "history": []
+    },
+    {
+      "id": "G-003",
+      "title": "Cindy",
+      "domain": "fitness",
+      "type": "benchmark",
+      "status": "active",
+      "created": "2026-08-17",
+      "benchmark": "cindy",
+      "scaledAs": "3-6-9, 12 min, ring rows",
+      "history": []
+    },
+    {
+      "id": "G-004",
+      "title": "Perform Cindy as prescribed",
+      "domain": "fitness",
+      "type": "outcome",
+      "status": "active",
+      "created": "2026-08-17",
+      "due": "2026-12-31",
+      "definition": "5 pull-ups / 10 push-ups / 15 air squats, AMRAP 20 minutes, no substitutions.",
+      "history": []
+    },
+    {
+      "id": "G-005",
+      "title": "Push-ups",
+      "domain": "fitness",
+      "type": "threshold",
+      "status": "active",
+      "created": "2026-08-17",
+      "target": { "value": 50, "unit": "reps", "mode": "cumulative" },
+      "baseline": { "value": 10, "date": "2026-08-17" },
+      "note": "Mode UNCONFIRMED (D8) — consecutive vs cumulative not yet ruled. Seeded cumulative.",
+      "history": []
+    }
+  ],
+  "week": {
+    "blocks": [
+      { "id": "B-001", "day": "mon", "start": "07:00", "end": "07:30", "label": "PT session", "kind": "goal", "goalId": "G-001" },
+      { "id": "B-002", "day": "tue", "start": "07:00", "end": "07:30", "label": "PT session", "kind": "goal", "goalId": "G-001" },
+      { "id": "B-003", "day": "thu", "start": "07:00", "end": "07:30", "label": "PT session", "kind": "goal", "goalId": "G-001" },
+      { "id": "B-004", "day": "sat", "start": "09:00", "end": "09:30", "label": "PT session", "kind": "goal", "goalId": "G-001" },
+      { "id": "B-005", "day": "tue", "start": "18:30", "end": "19:00", "label": "Scaled Cindy", "kind": "goal", "goalId": "G-003" },
+      { "id": "B-006", "day": "sat", "start": "10:00", "end": "10:30", "label": "Scaled Cindy", "kind": "goal", "goalId": "G-003" },
+      { "id": "B-007", "day": "sun", "start": "14:00", "end": "16:00", "label": "Rest — yours, protected", "kind": "rest", "protected": true },
+      { "id": "B-008", "day": "wed", "start": "19:00", "end": "21:00", "label": "Rest — yours, protected", "kind": "rest", "protected": true },
+      { "id": "B-009", "day": "mon", "start": "22:00", "end": "23:00", "label": "Pre-bed routine", "kind": "routine" },
+      { "id": "B-010", "day": "tue", "start": "22:00", "end": "23:00", "label": "Pre-bed routine", "kind": "routine" },
+      { "id": "B-011", "day": "wed", "start": "22:00", "end": "23:00", "label": "Pre-bed routine", "kind": "routine" },
+      { "id": "B-012", "day": "thu", "start": "22:00", "end": "23:00", "label": "Pre-bed routine", "kind": "routine" },
+      { "id": "B-013", "day": "fri", "start": "22:00", "end": "23:00", "label": "Pre-bed routine", "kind": "routine" },
+      { "id": "B-014", "day": "sat", "start": "22:00", "end": "23:00", "label": "Pre-bed routine", "kind": "routine" },
+      { "id": "B-015", "day": "sun", "start": "22:00", "end": "23:00", "label": "Pre-bed routine", "kind": "routine" }
+    ]
+  },
+  "routines": [
+    {
+      "id": "RT-001",
+      "name": "Pre-bed",
+      "anchor": "bedtime",
+      "offset": -60,
+      "steps": [
+        { "label": "Shower", "minutes": 15 },
+        { "label": "Stretch", "minutes": 15 },
+        { "label": "Wind down — no screens", "minutes": 30 }
+      ]
+    }
+  ],
+  "tasks": {
+    "inbox": [
+      { "id": "R-101", "item": "Sample: replace these week-grid times with your real routine", "created": "2026-08-18", "by": null, "notes": "Seed placeholder — edit loadout-data.json", "domain": "loadout", "estimate": 20, "goalId": null },
+      { "id": "R-102", "item": "Sample: decide push-up goal — consecutive or cumulative (D8)", "created": "2026-08-18", "by": null, "notes": "Seed placeholder", "domain": "loadout", "estimate": 5, "goalId": "G-005" },
+      { "id": "R-103", "item": "Sample: a task with no estimate — the Navi will ask for one", "created": "2026-08-18", "by": null, "notes": "Seed placeholder", "domain": "loadout", "estimate": null, "goalId": null },
+      { "id": "R-104", "item": "Sample: a deadline task renders its BY date", "created": "2026-08-18", "by": "2026-08-31", "notes": "Seed placeholder", "domain": "loadout", "estimate": 30, "goalId": null }
+    ],
+    "today": [],
+    "open": [],
+    "ideas": [],
+    "done": []
+  },
+  "metrics": {
+    "definitions": [
+      { "id": "M-001", "prompt": "Back pain", "scale": { "min": 1, "max": 5 }, "direction": "lower-is-better" },
+      { "id": "M-002", "prompt": "Shoulder pain", "scale": { "min": 1, "max": 5 }, "direction": "lower-is-better" },
+      { "id": "M-003", "prompt": "Energy", "scale": { "min": 1, "max": 5 }, "direction": "higher-is-better" },
+      { "id": "M-004", "prompt": "Did I feel done tonight?", "scale": { "min": 1, "max": 5 }, "direction": "higher-is-better" }
+    ],
+    "entries": []
+  },
+  "preferences": { "valuations": [], "notes": [] },
+  "runs": []
+}

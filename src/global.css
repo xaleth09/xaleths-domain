@@ -31,6 +31,18 @@ html {
   text-rendering: optimizeLegibility;
 }
 
+/* Paint the ground behind the app root so overscroll/edges never flash white.
+   Loadout renders in both schemes; the shell is dark-first. */
+body {
+  background-color: var(--color-bg);
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    background-color: #eef2f7;
+  }
+}
+
 /* ─── Interaction Defaults ───────────────────────────────────────────────── */
 
 * {

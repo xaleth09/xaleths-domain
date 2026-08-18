@@ -18,7 +18,9 @@ const SESSION_DAYS = 30; // how long a login lasts before re-auth
 const PROTECTED_PREFIXES = ['/private/'];
 // 2) One-off files anywhere else. Add a path here to gate a single page.
 //    e.g. '/flavor-form-study.html'
-const PROTECTED_PATHS = [];
+// /loadout is an app route (expo static export serves it as /loadout.html too);
+// its data file is already covered by the /private/ prefix.
+const PROTECTED_PATHS = ['/loadout', '/loadout.html'];
 
 function isProtected(pathname) {
   if (PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))) return true;
