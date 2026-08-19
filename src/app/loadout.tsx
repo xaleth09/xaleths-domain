@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useColorScheme,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -34,56 +33,36 @@ import {
 // Block identity is never color-alone: every block carries its label text.
 // ---------------------------------------------------------------------------
 
-const PALETTES = {
-  dark: {
-    page: '#080d1a',
-    surface: '#0d1526',
-    surface2: '#111b30',
-    ink: '#ffffff',
-    ink2: '#7eb8cc',
-    ink3: '#4a6a7a',
-    line: 'rgba(0, 212, 255, 0.4)',
-    lineSoft: 'rgba(0, 212, 255, 0.15)',
-    accent: '#00d4ff',
-    warm: '#f5a623',
-    warmLine: 'rgba(245, 166, 35, 0.5)',
-    danger: '#ff6b6b',
-    markCyan: '#1e93b5',
-    markAmber: '#b57917',
-    markViolet: '#8f62cf',
-    markCyanBg: 'rgba(30, 147, 181, 0.18)',
-    markAmberBg: 'rgba(181, 121, 23, 0.18)',
-    markVioletBg: 'rgba(143, 98, 207, 0.18)',
-    neutralBg: 'rgba(126, 184, 204, 0.08)',
-    neutralLine: 'rgba(126, 184, 204, 0.35)',
-    glow: { shadowColor: '#00d4ff', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4 },
-  },
-  light: {
-    page: '#eef2f7',
-    surface: '#ffffff',
-    surface2: '#f4f8fb',
-    ink: '#10202b',
-    ink2: '#3d6a7d',
-    ink3: '#7d97a4',
-    line: 'rgba(7, 122, 163, 0.45)',
-    lineSoft: 'rgba(7, 122, 163, 0.16)',
-    accent: '#077aa3',
-    warm: '#8f6206',
-    warmLine: 'rgba(143, 98, 6, 0.5)',
-    danger: '#bc4a38',
-    markCyan: '#0b7fa6',
-    markAmber: '#8f6206',
-    markViolet: '#7147b8',
-    markCyanBg: 'rgba(11, 127, 166, 0.12)',
-    markAmberBg: 'rgba(143, 98, 6, 0.12)',
-    markVioletBg: 'rgba(113, 71, 184, 0.12)',
-    neutralBg: 'rgba(61, 106, 125, 0.07)',
-    neutralLine: 'rgba(61, 106, 125, 0.35)',
-    glow: { shadowColor: '#077aa3', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 },
-  },
+const PALETTE = {
+  page: '#080d1a',
+  surface: '#0d1526',
+  surface2: '#101c33',
+  ink: '#ffffff',
+  ink2: '#7eb8cc',
+  ink3: '#4a6a7a',
+  line: 'rgba(0, 212, 255, 0.4)',
+  lineSoft: 'rgba(0, 212, 255, 0.15)',
+  accent: '#00d4ff',
+  warm: '#f5a623',
+  warmLine: 'rgba(245, 166, 35, 0.5)',
+  danger: '#ff6b6b',
+  markCyan: '#1e93b5',
+  markAmber: '#b57917',
+  markViolet: '#8f62cf',
+  markCyanBg: 'rgba(30, 147, 181, 0.18)',
+  markAmberBg: 'rgba(181, 121, 23, 0.18)',
+  markVioletBg: 'rgba(143, 98, 207, 0.18)',
+  // Brighter inks for text sitting on the tinted block fills — these are
+  // labels, not data marks; the mark set above stays the validated one.
+  inkCyan: '#5bc9ea',
+  inkAmber: '#f0b445',
+  inkViolet: '#b795ec',
+  neutralBg: 'rgba(126, 184, 204, 0.08)',
+  neutralLine: 'rgba(126, 184, 204, 0.35)',
+  glow: { shadowColor: '#00d4ff', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4 },
 } as const;
 
-type Pal = (typeof PALETTES)['dark'] | (typeof PALETTES)['light'];
+type Pal = typeof PALETTE;
 
 const DAYS: Day[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS: Record<Day, string> = {
@@ -103,9 +82,9 @@ function daysUntil(iso: string): number {
 
 function blockColors(pal: Pal, kind: WeekBlock['kind']) {
   switch (kind) {
-    case 'goal': return { border: pal.markCyan, bg: pal.markCyanBg, text: pal.markCyan };
-    case 'rest': return { border: pal.markAmber, bg: pal.markAmberBg, text: pal.markAmber };
-    case 'routine': return { border: pal.markViolet, bg: pal.markVioletBg, text: pal.markViolet };
+    case 'goal': return { border: pal.markCyan, bg: pal.markCyanBg, text: pal.inkCyan };
+    case 'rest': return { border: pal.markAmber, bg: pal.markAmberBg, text: pal.inkAmber };
+    case 'routine': return { border: pal.markViolet, bg: pal.markVioletBg, text: pal.inkViolet };
     default: return { border: pal.neutralLine, bg: pal.neutralBg, text: pal.ink2 };
   }
 }
@@ -409,8 +388,7 @@ type LoadState =
 
 export default function LoadoutScreen() {
   const router = useRouter();
-  const scheme = useColorScheme();
-  const pal: Pal = scheme === 'light' ? PALETTES.light : PALETTES.dark;
+  const pal: Pal = PALETTE; // dark-only by design — the whole site is (BN/PET)
   const { width } = useWindowDimensions();
   const twoCol = width >= 760;
   const [state, setState] = useState<LoadState>({ phase: 'loading' });

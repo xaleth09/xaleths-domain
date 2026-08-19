@@ -31,16 +31,15 @@ html {
   text-rendering: optimizeLegibility;
 }
 
-/* Paint the ground behind the app root so overscroll/edges never flash white.
-   Loadout renders in both schemes; the shell is dark-first. */
-body {
-  background-color: var(--color-bg);
+/* The site is dark-only by design (BN/PET). Paint the ground and declare the
+   scheme so browser force-dark / auto-dark never reinterprets the palette,
+   and overscroll edges never flash white on light-mode devices. */
+html {
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: light) {
-  body {
-    background-color: #eef2f7;
-  }
+body {
+  background-color: var(--color-bg);
 }
 
 /* ─── Interaction Defaults ───────────────────────────────────────────────── */
