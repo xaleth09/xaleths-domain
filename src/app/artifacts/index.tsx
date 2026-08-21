@@ -25,6 +25,14 @@ const ARTIFACTS: Artifact[] = [
     requiresAuth: true,
   },
   {
+    id: 'zenny',
+    title: 'Zenny',
+    description: 'The money console — bills grouped by the paycheck that funds them with paid/unpaid state, debt burndown across cards and loans, one honest safe-to-spend number per month, and RSU vest tracking with an estimated-net-vs-debt coverage readout. Native page; demo data until the repo goes private.',
+    url: '/zenny',
+    tag: 'CONSOLE',
+    requiresAuth: true,
+  },
+  {
     id: 'team-splitter',
     title: 'Team Splitter',
     description: 'Every valid way to split the player pool into two 3-person core teams for 9-ball league play — both teams kept in Gold or Silver (never Platinum), leftovers as rating-free subs. Enforces Robbi & Aaron on opposite teams and the higher-rated-only sub rule, with a balance thermometer, division-matchup views, and a "same team" player filter.',

@@ -1,0 +1,62 @@
+{
+  "schema": "zenny/v1",
+  "updated": "2026-08-18",
+  "demo": true,
+  "note": "DEMO DATA — every number on this page is fake. The real data file is staged privately and swaps in once the repo-visibility decision lands. Structure mirrors the real shape: two pay periods, mixed auto/manual bills, one flex bill, linked debt accounts, an RSU grant with a first cliff.",
+  "income": {
+    "grossAnnual": null,
+    "paychecks": [
+      { "id": "P-31", "day": 31, "net": 5000 },
+      { "id": "P-15", "day": 15, "net": 5100 }
+    ]
+  },
+  "bills": [
+    { "id": "BL-01", "name": "Rent", "amount": { "type": "fixed", "value": 2200 }, "dueDay": 1, "autopay": false, "period": "P-31", "accountId": null },
+    { "id": "BL-02", "name": "Auto insurance", "amount": { "type": "fixed", "value": 175 }, "dueDay": 1, "autopay": true, "period": "P-31", "accountId": null },
+    { "id": "BL-03", "name": "Credit Card A", "amount": { "type": "fixed", "value": 350 }, "dueDay": 15, "autopay": true, "period": "P-31", "accountId": "AC-01" },
+    { "id": "BL-04", "name": "Credit Card B", "amount": { "type": "fixed", "value": 150 }, "dueDay": 7, "autopay": true, "period": "P-31", "accountId": "AC-02" },
+    { "id": "BL-05", "name": "Car loan", "amount": { "type": "fixed", "value": 1150 }, "dueDay": 20, "autopay": true, "period": "P-31", "accountId": "AC-07" },
+    { "id": "BL-06", "name": "Utilities", "amount": { "type": "range", "min": 250, "max": 450 }, "dueDay": 11, "autopay": false, "period": "P-31", "accountId": null },
+    { "id": "BL-07", "name": "Credit Card C", "amount": { "type": "fixed", "value": 375 }, "dueDay": 13, "autopay": true, "period": "P-31", "accountId": "AC-03" },
+    { "id": "BL-08", "name": "Credit Card D", "amount": { "type": "flex", "note": "whatever cash is left" }, "dueDay": 7, "autopay": false, "period": "P-31", "accountId": "AC-04" },
+    { "id": "BL-09", "name": "Student loan", "amount": { "type": "fixed", "value": 150 }, "dueDay": 21, "autopay": true, "period": "P-15", "accountId": "AC-05" },
+    { "id": "BL-10", "name": "Personal loan A", "amount": { "type": "fixed", "value": 1100 }, "dueDay": 21, "autopay": true, "period": "P-15", "accountId": "AC-06" },
+    { "id": "BL-11", "name": "Personal loan B", "amount": { "type": "fixed", "value": 500 }, "dueDay": 24, "autopay": true, "period": "P-15", "accountId": "AC-08" },
+    { "id": "BL-12", "name": "Phone", "amount": { "type": "fixed", "value": 240 }, "dueDay": 24, "autopay": true, "period": "P-15", "accountId": null },
+    { "id": "BL-13", "name": "Internet", "amount": { "type": "fixed", "value": 160 }, "dueDay": 25, "autopay": true, "period": "P-15", "accountId": null }
+  ],
+  "paidLog": {
+    "2026-08": ["BL-01", "BL-02", "BL-04", "BL-08"]
+  },
+  "accounts": [
+    { "id": "AC-01", "name": "Credit Card A", "kind": "cc", "apr": null, "autopay": true, "minPayment": 350, "history": [{ "date": "2026-08-18", "balance": 6400 }] },
+    { "id": "AC-02", "name": "Credit Card B", "kind": "cc", "apr": null, "autopay": true, "minPayment": 150, "history": [{ "date": "2026-08-18", "balance": 4800 }] },
+    { "id": "AC-03", "name": "Credit Card C", "kind": "cc", "apr": null, "autopay": true, "minPayment": 375, "history": [{ "date": "2026-08-18", "balance": 9800 }] },
+    { "id": "AC-04", "name": "Credit Card D", "kind": "cc", "apr": null, "autopay": false, "minPayment": null, "history": [{ "date": "2026-08-18", "balance": 8900 }] },
+    { "id": "AC-05", "name": "Student loan", "kind": "student", "apr": null, "autopay": true, "minPayment": 150, "history": [{ "date": "2026-08-18", "balance": 3600 }] },
+    { "id": "AC-06", "name": "Personal loan A", "kind": "loan", "apr": null, "autopay": true, "minPayment": 1100, "history": [{ "date": "2026-08-18", "balance": 14200 }] },
+    { "id": "AC-07", "name": "Car loan", "kind": "auto", "apr": null, "autopay": true, "minPayment": 1150, "history": [{ "date": "2026-08-18", "balance": 16800 }] },
+    { "id": "AC-08", "name": "Personal loan B", "kind": "loan", "apr": null, "autopay": true, "minPayment": 500, "history": [{ "date": "2026-08-18", "balance": 7300 }] }
+  ],
+  "equity": {
+    "grants": [
+      {
+        "id": "EQ-01",
+        "employer": "Employer",
+        "ticker": "HNGE",
+        "totalShares": 4000,
+        "vests": [
+          { "date": "2026-10-31", "shares": 1000, "pct": 25, "plan": "Sell immediately → debt paydown" }
+        ],
+        "note": "DEMO grant size. First cliff 25%; schedule after cliff TBD."
+      }
+    ],
+    "price": { "value": 88.8, "asOf": "2026-08-19", "source": "manual" },
+    "withholdingPct": 0.4
+  },
+  "savings": {
+    "balance": 1500,
+    "target": 10000,
+    "history": [{ "date": "2026-08-18", "balance": 1500 }]
+  }
+}

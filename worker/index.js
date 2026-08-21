@@ -20,7 +20,7 @@ const PROTECTED_PREFIXES = ['/private/'];
 //    e.g. '/flavor-form-study.html'
 // /loadout is an app route (expo static export serves it as /loadout.html too);
 // its data file is already covered by the /private/ prefix.
-const PROTECTED_PATHS = ['/loadout', '/loadout.html'];
+const PROTECTED_PATHS = ['/loadout', '/loadout.html', '/zenny', '/zenny.html'];
 
 function isProtected(pathname) {
   if (PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))) return true;
