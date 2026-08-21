@@ -102,30 +102,48 @@ function Chip({ pal, label, tone }: { pal: Pal; label: string; tone: 'accent' | 
 // Bills — grouped by the paycheck that funds them (Robbi's own split).
 // ---------------------------------------------------------------------------
 
-function BillRow({ pal, bill, paid, account }: { pal: Pal; bill: Bill; paid: boolean; account?: Account }) {
+type PaidStatus = 'confirmed' | 'cleared' | 'overdue' | 'open';
+
+function BillRow({ pal, bill, status, account, onToggle }: {
+  pal: Pal; bill: Bill; status: PaidStatus; account?: Account; onToggle?: () => void;
+}) {
   const amt = billAmountValue(bill.amount);
   const bal = account ? currentBalance(account) : null;
-  return (
+  const done = status === 'confirmed' || status === 'cleared';
+  const boxColor = status === 'confirmed' ? pal.good
+    : status === 'cleared' ? 'rgba(79, 176, 122, 0.55)'
+    : status === 'overdue' ? pal.inkAmber
+    : pal.neutralLine;
+  const row = (
     <View style={[styles.billRow, { borderColor: pal.lineSoft }]}>
       <View style={[styles.payBox, {
-        borderColor: paid ? pal.good : pal.neutralLine,
-        backgroundColor: paid ? 'rgba(79, 176, 122, 0.15)' : 'transparent',
+        borderColor: boxColor,
+        borderStyle: status === 'cleared' ? 'dashed' : 'solid',
+        backgroundColor: status === 'confirmed' ? 'rgba(79, 176, 122, 0.15)' : 'transparent',
       }]}>
-        <Text style={[styles.payMark, { color: paid ? pal.good : 'transparent' }]}>✓</Text>
+        <Text style={[styles.payMark, { color: done ? boxColor : 'transparent' }]}>✓</Text>
       </View>
       <View style={styles.billBody}>
         <View style={styles.billTop}>
-          <Text style={[styles.billName, { color: paid ? pal.ink3 : pal.ink }]}>{bill.name}</Text>
-          {bill.autopay ? <Text style={[styles.autoTag, { color: pal.ink3 }]}>AUTO</Text> : <Text style={[styles.autoTag, { color: pal.inkAmber }]}>MANUAL</Text>}
+          <Text style={[styles.billName, { color: done ? pal.ink3 : pal.ink }]}>{bill.name}</Text>
+          {bill.autopay
+            ? <Text style={[styles.autoTag, { color: pal.ink3 }]}>AUTO</Text>
+            : <Text style={[styles.autoTag, { color: pal.inkAmber }]}>MANUAL</Text>}
+          {status === 'overdue' ? <Text style={[styles.autoTag, { color: pal.danger }]}>● OVERDUE</Text> : null}
         </View>
         <Text style={[styles.billMeta, { color: pal.ink3 }]}>
           due {bill.dueDay}{ordinal(bill.dueDay)}
+          {status === 'cleared' ? ' · auto — assumed paid' : ''}
+          {status === 'confirmed' ? ' · paid ✓' : ''}
           {bal != null ? ` · balance ${money(bal)}` : ''}
         </Text>
       </View>
-      <Text style={[styles.billAmt, { color: paid ? pal.ink3 : pal.ink2 }]}>{amt.display}</Text>
+      <Text style={[styles.billAmt, { color: done ? pal.ink3 : pal.ink2 }]}>{amt.display}</Text>
     </View>
   );
+  // Manual bills are tappable; the check is device-local until the write path
+  // lands (paidLog in the JSON stays canonical and wins across devices).
+  return onToggle ? <Pressable onPress={onToggle}>{row}</Pressable> : row;
 }
 
 function ordinal(n: number): string {
@@ -219,6 +237,24 @@ export default function ZennyScreen() {
   const { width } = useWindowDimensions();
   const twoCol = width >= 760;
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
+  // Device-local manual checkmarks, keyed by month. Convenience overlay only —
+  // paidLog in zenny-data.json is the canonical record and wins everywhere.
+  const localKey = `zenny-local-paid-${monthKey(new Date())}`;
+  const [localPaid, setLocalPaid] = useState<string[]>([]);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    try {
+      const raw = window.localStorage.getItem(localKey);
+      if (raw) setLocalPaid(JSON.parse(raw));
+    } catch {}
+  }, [localKey]);
+  const toggleLocal = (id: string) => {
+    setLocalPaid(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      try { window.localStorage.setItem(localKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -255,8 +291,15 @@ export default function ZennyScreen() {
     const d = state.data;
     const now = new Date();
     const mk = monthKey(now);
-    const paid = new Set(d.paidLog[mk] ?? []);
+    const today = now.getDate();
+    const paid = new Set([...(d.paidLog[mk] ?? []), ...localPaid]);
     const accountById = new Map(d.accounts.map(a => [a.id, a]));
+    const statusOf = (b: Bill): PaidStatus => {
+      if (paid.has(b.id)) return 'confirmed';
+      if (b.autopay && today >= b.dueDay) return 'cleared';
+      if (!b.autopay && today > b.dueDay) return 'overdue';
+      return 'open';
+    };
 
     const periods = d.income.paychecks.map(p => {
       const bills = d.bills.filter(b => b.period === p.id).sort((a, b) => a.dueDay - b.dueDay);
@@ -272,8 +315,10 @@ export default function ZennyScreen() {
         }
       }
       const leftover = p.net - committed;
-      const paidCount = bills.filter(b => paid.has(b.id)).length;
-      return { p, bills, committed, leftover, hasFlex, hasRange, paidCount };
+      const statuses = bills.map(b => statusOf(b));
+      const paidCount = statuses.filter(st => st === 'confirmed' || st === 'cleared').length;
+      const overdueCount = statuses.filter(st => st === 'overdue').length;
+      return { p, bills, committed, leftover, hasFlex, hasRange, paidCount, overdueCount };
     });
 
     const monthNet = d.income.paychecks.reduce((s, p) => s + p.net, 0);
@@ -303,7 +348,7 @@ export default function ZennyScreen() {
           kicker={`${now.toLocaleString('en-US', { month: 'long' })} · grouped by the paycheck that funds them`}
         >
           <View style={[styles.row, !twoCol && styles.rowStack]}>
-            {periods.map(({ p, bills, committed, leftover, hasFlex, hasRange, paidCount }) => (
+            {periods.map(({ p, bills, committed, leftover, hasFlex, hasRange, paidCount, overdueCount }) => (
               <View key={p.id} style={twoCol ? styles.rowItem : undefined}>
                 <View style={[styles.periodBox, { borderColor: pal.lineSoft, backgroundColor: pal.surface2 }]}>
                   <View style={styles.periodHead}>
@@ -313,11 +358,18 @@ export default function ZennyScreen() {
                     <Text style={[styles.periodNet, { color: pal.ink2 }]}>{money(p.net)} in</Text>
                   </View>
                   {bills.map(b => (
-                    <BillRow key={b.id} pal={pal} bill={b} paid={paid.has(b.id)} account={b.accountId ? accountById.get(b.accountId) : undefined} />
+                    <BillRow
+                      key={b.id}
+                      pal={pal}
+                      bill={b}
+                      status={statusOf(b)}
+                      account={b.accountId ? accountById.get(b.accountId) : undefined}
+                      onToggle={!b.autopay ? () => toggleLocal(b.id) : undefined}
+                    />
                   ))}
                   <View style={styles.periodFoot}>
-                    <Text style={[styles.periodFootText, { color: pal.ink3 }]}>
-                      {paidCount}/{bills.length} paid · {hasRange ? '~' : ''}{money(committed)} committed{hasFlex ? ' + flex' : ''}
+                    <Text style={[styles.periodFootText, { color: overdueCount ? pal.danger : pal.ink3 }]}>
+                      {paidCount}/{bills.length} paid{overdueCount ? ` · ${overdueCount} OVERDUE` : ''} · {hasRange ? '~' : ''}{money(committed)} committed{hasFlex ? ' + flex' : ''}
                     </Text>
                     <Text style={[styles.periodLeft, { color: leftover > 400 ? pal.good : pal.inkAmber }]}>
                       {money(leftover)} left
@@ -416,7 +468,7 @@ export default function ZennyScreen() {
         <Text style={[styles.footer, { color: pal.ink3 }]}>zenny/v1 · updated {d.updated}</Text>
       </>
     );
-  }, [state, pal, twoCol]);
+  }, [state, pal, twoCol, localPaid]);
 
   return (
     <View style={[styles.container, { backgroundColor: pal.page }]}>
