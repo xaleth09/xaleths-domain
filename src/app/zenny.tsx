@@ -72,6 +72,33 @@ function daysUntil(iso: string): number {
   return Math.ceil((new Date(iso + 'T23:59:59').getTime() - Date.now()) / 86400000);
 }
 
+// --- Pay cycles -------------------------------------------------------------
+// A period's cycle starts on its payday and its paid state resets then:
+// P-31 bills reset on the 31st, P-15 bills on the 15th. Paydays clamp to the
+// last day of short months (the "31st" check in September lands the 30th).
+
+function clampDate(y: number, m: number, day: number): Date {
+  const dim = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(day, dim));
+}
+
+function cycleStartFor(payday: number, now: Date): Date {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let c = clampDate(today.getFullYear(), today.getMonth(), payday);
+  if (c > today) c = clampDate(today.getFullYear(), today.getMonth() - 1, payday);
+  return c;
+}
+
+function dueDateInCycle(dueDay: number, start: Date): Date {
+  let d = clampDate(start.getFullYear(), start.getMonth(), dueDay);
+  if (d < start) d = clampDate(start.getFullYear(), start.getMonth() + 1, dueDay);
+  return d;
+}
+
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 // ---------------------------------------------------------------------------
 // Shared pieces (kept page-local for now, mirroring loadout.tsx — consolidate
 // into components/ when a third console lands).
@@ -106,9 +133,16 @@ function Chip({ pal, label, tone }: { pal: Pal; label: string; tone: 'accent' | 
 
 type PaidStatus = 'confirmed' | 'cleared' | 'overdue' | 'open';
 
-function BillRow({ pal, bill, status, account, onToggle, flexEntry }: {
+function BillRow({ pal, bill, status, account, onToggle, flex }: {
   pal: Pal; bill: Bill; status: PaidStatus; account?: Account; onToggle?: () => void;
-  flexEntry?: { value: string; onChange: (v: string) => void };
+  flex?: {
+    editing: boolean;
+    value: string;
+    effective: number;
+    onStart: () => void;
+    onChange: (v: string) => void;
+    onEnd: () => void;
+  };
 }) {
   const amt = billAmountValue(bill.amount);
   const bal = account ? currentBalance(account) : null;
@@ -141,23 +175,39 @@ function BillRow({ pal, bill, status, account, onToggle, flexEntry }: {
           {bal != null ? ` · balance ${money(bal)}` : ''}
         </Text>
       </View>
-      {flexEntry ? (
-        <TextInput
-          value={flexEntry.value}
-          onChangeText={flexEntry.onChange}
-          placeholder={amt.display}
-          placeholderTextColor={pal.ink3}
-          inputMode="decimal"
-          style={[styles.flexInput, { color: pal.ink, borderColor: pal.line }]}
-        />
+      {flex ? (
+        // The amount chunk is its own press target (edit); the row press is the
+        // paid toggle. stopPropagation keeps the two from colliding.
+        flex.editing ? (
+          <Pressable onPress={(e: { stopPropagation?: () => void }) => e?.stopPropagation?.()}>
+            <TextInput
+              autoFocus
+              value={flex.value}
+              onChangeText={flex.onChange}
+              onBlur={flex.onEnd}
+              onSubmitEditing={flex.onEnd}
+              placeholder={String(flex.effective || '')}
+              placeholderTextColor={pal.ink3}
+              inputMode="decimal"
+              style={[styles.flexInput, { color: pal.ink, borderColor: pal.line }]}
+            />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={(e: { stopPropagation?: () => void }) => { e?.stopPropagation?.(); flex.onStart(); }}
+            style={styles.flexChunk}
+          >
+            <Text style={[styles.billAmt, { color: done ? pal.ink3 : pal.ink2 }]}>{money(flex.effective)}</Text>
+            <Text style={[styles.editHint, { color: pal.accent }]}>✎ EDIT</Text>
+          </Pressable>
+        )
       ) : (
         <Text style={[styles.billAmt, { color: done ? pal.ink3 : pal.ink2 }]}>{amt.display}</Text>
       )}
     </View>
   );
-  // Manual bills are tappable; the check is device-local until the write path
-  // lands (paidLog in the JSON stays canonical and wins across devices).
-  // Flex bills instead confirm by having an amount typed in.
+  // Manual bills (flex included) toggle paid by pressing the row. Device-local
+  // until the write path lands; paidLog in the JSON stays canonical.
   return onToggle ? <Pressable onPress={onToggle}>{row}</Pressable> : row;
 }
 
@@ -252,45 +302,35 @@ export default function ZennyScreen() {
   const { width } = useWindowDimensions();
   const twoCol = width >= 760;
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
-  // Device-local manual checkmarks, keyed by month. Convenience overlay only —
-  // paidLog in zenny-data.json is the canonical record and wins everywhere.
-  const localKey = `zenny-local-paid-${monthKey(new Date())}`;
-  const [localPaid, setLocalPaid] = useState<string[]>([]);
+  // Device-local paid checks + flex amounts, keyed by PAY CYCLE (see
+  // cycleStartFor) so first-half state resets on the 31st and second-half on
+  // the 15th. paidLog in zenny-data.json uses the same keys and is canonical.
+  const [localPaid, setLocalPaid] = useState<Record<string, string[]>>({});
+  const [localFlex, setLocalFlex] = useState<Record<string, Record<string, string>>>({});
+  const [editingFlex, setEditingFlex] = useState<string | null>(null);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     try {
-      const raw = window.localStorage.getItem(localKey);
-      if (raw) setLocalPaid(JSON.parse(raw));
+      const rawP = window.localStorage.getItem('zenny-paid-cycles');
+      if (rawP) setLocalPaid(JSON.parse(rawP));
+      const rawF = window.localStorage.getItem('zenny-flex-cycles');
+      if (rawF) setLocalFlex(JSON.parse(rawF));
     } catch {}
-  }, [localKey]);
-  const toggleLocal = (id: string) => {
+  }, []);
+  const toggleLocal = (cycleKey: string, id: string) => {
     setLocalPaid(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      try { window.localStorage.setItem(localKey, JSON.stringify(next)); } catch {}
+      const cur = prev[cycleKey] ?? [];
+      const next = { ...prev, [cycleKey]: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
+      try { window.localStorage.setItem('zenny-paid-cycles', JSON.stringify(next)); } catch {}
       return next;
     });
   };
-  // Flex-bill amounts ("what did I actually put toward it") — typing an amount
-  // IS the paid signal for a flex bill. Device-local, same deal as the checks.
-  const flexKey = `zenny-local-flex-${monthKey(new Date())}`;
-  const [localFlex, setLocalFlex] = useState<Record<string, string>>({});
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    try {
-      const raw = window.localStorage.getItem(flexKey);
-      if (raw) setLocalFlex(JSON.parse(raw));
-    } catch {}
-  }, [flexKey]);
-  const setFlexAmount = (id: string, value: string) => {
+  const setFlexAmount = (cycleKey: string, id: string, value: string) => {
     setLocalFlex(prev => {
-      const next = { ...prev, [id]: value.replace(/[^0-9.]/g, '') };
-      try { window.localStorage.setItem(flexKey, JSON.stringify(next)); } catch {}
+      const next = { ...prev, [cycleKey]: { ...(prev[cycleKey] ?? {}), [id]: value.replace(/[^0-9.]/g, '') } };
+      try { window.localStorage.setItem('zenny-flex-cycles', JSON.stringify(next)); } catch {}
       return next;
     });
-  };
-  const flexValue = (id: string): number => {
-    const n = parseFloat(localFlex[id] ?? '');
-    return Number.isFinite(n) && n > 0 ? n : 0;
   };
 
   useEffect(() => {
@@ -327,15 +367,32 @@ export default function ZennyScreen() {
 
     const d = state.data;
     const now = new Date();
-    const mk = monthKey(now);
-    const today = now.getDate();
-    const paid = new Set([...(d.paidLog[mk] ?? []), ...localPaid]);
+    const todayD = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const accountById = new Map(d.accounts.map(a => [a.id, a]));
+    const cycles = new Map(d.income.paychecks.map(p => {
+      const start = cycleStartFor(p.day, now);
+      return [p.id, { start, key: `${p.id}:${fmtDate(start)}` }];
+    }));
+    const cycleOf = (b: Bill) => cycles.get(b.period)!;
+    const isPaid = (b: Bill) => {
+      const c = cycleOf(b);
+      return (d.paidLog[c.key] ?? []).includes(b.id) || (localPaid[c.key] ?? []).includes(b.id);
+    };
+    const flexValue = (b: Bill): number => {
+      const c = cycleOf(b);
+      const n = parseFloat(localFlex[c.key]?.[b.id] ?? '');
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    const flexEffective = (b: Bill): number => {
+      const entered = flexValue(b);
+      if (entered > 0) return entered;
+      return b.amount.type === 'flex' ? (b.amount.defaultValue ?? 0) : 0;
+    };
     const statusOf = (b: Bill): PaidStatus => {
-      if (paid.has(b.id)) return 'confirmed';
-      if (b.amount.type === 'flex' && flexValue(b.id) > 0) return 'confirmed';
-      if (b.autopay && today >= b.dueDay) return 'cleared';
-      if (!b.autopay && today > b.dueDay) return 'overdue';
+      if (isPaid(b)) return 'confirmed';
+      const due = dueDateInCycle(b.dueDay, cycleOf(b).start);
+      if (b.autopay && todayD >= due) return 'cleared';
+      if (!b.autopay && todayD > due) return 'overdue';
       return 'open';
     };
 
@@ -345,13 +402,13 @@ export default function ZennyScreen() {
       let hasFlex = false;
       let hasRange = false;
       for (const b of bills) {
-        const v = billAmountValue(b.amount);
-        if (v.mid == null) {
-          const entered = flexValue(b.id);
-          if (entered > 0) committed += entered;
+        if (b.amount.type === 'flex') {
+          const eff = flexEffective(b);
+          if (eff > 0) committed += eff;
           else hasFlex = true;
         } else {
-          committed += v.mid;
+          const v = billAmountValue(b.amount);
+          committed += v.mid ?? 0;
           if (b.amount.type === 'range') hasRange = true;
         }
       }
@@ -394,7 +451,7 @@ export default function ZennyScreen() {
                 <View style={[styles.periodBox, { borderColor: pal.lineSoft, backgroundColor: pal.surface2 }]}>
                   <View style={styles.periodHead}>
                     <Text style={[styles.periodTitle, { color: pal.accent }]}>
-                      PAID ON THE {p.day}{ordinal(p.day)}
+                      PAID ON THE {p.day}{ordinal(p.day)} <Text style={{ color: pal.ink3 }}>· resets then</Text>
                     </Text>
                     <Text style={[styles.periodNet, { color: pal.ink2 }]}>{money(p.net)} in</Text>
                   </View>
@@ -405,8 +462,15 @@ export default function ZennyScreen() {
                       bill={b}
                       status={statusOf(b)}
                       account={b.accountId ? accountById.get(b.accountId) : undefined}
-                      onToggle={!b.autopay && b.amount.type !== 'flex' ? () => toggleLocal(b.id) : undefined}
-                      flexEntry={b.amount.type === 'flex' ? { value: localFlex[b.id] ?? '', onChange: v => setFlexAmount(b.id, v) } : undefined}
+                      onToggle={!b.autopay ? () => toggleLocal(cycleOf(b).key, b.id) : undefined}
+                      flex={b.amount.type === 'flex' ? {
+                        editing: editingFlex === b.id,
+                        value: localFlex[cycleOf(b).key]?.[b.id] ?? '',
+                        effective: flexEffective(b),
+                        onStart: () => setEditingFlex(b.id),
+                        onChange: v => setFlexAmount(cycleOf(b).key, b.id, v),
+                        onEnd: () => setEditingFlex(null),
+                      } : undefined}
                     />
                   ))}
                   <View style={styles.periodFoot}>
@@ -510,7 +574,7 @@ export default function ZennyScreen() {
         <Text style={[styles.footer, { color: pal.ink3 }]}>zenny/v1 · updated {d.updated}</Text>
       </>
     );
-  }, [state, pal, twoCol, localPaid, localFlex]);
+  }, [state, pal, twoCol, localPaid, localFlex, editingFlex]);
 
   return (
     <View style={[styles.container, { backgroundColor: pal.page }]}>
@@ -576,12 +640,14 @@ const styles = StyleSheet.create({
   payBox: { width: 20, height: 20, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   payMark: { fontSize: 12, fontWeight: '800' },
   billBody: { flex: 1, gap: 1 },
-  billTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  billName: { fontSize: 13, fontWeight: '600' },
+  billTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+  billName: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
   autoTag: { fontSize: 8, fontWeight: '700', letterSpacing: 1.5 },
   billMeta: { fontSize: 10, letterSpacing: 0.3 },
   billAmt: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  flexInput: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'], borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4, minWidth: 110, textAlign: 'right' },
+  flexInput: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'], borderWidth: 1, paddingHorizontal: 6, paddingVertical: 3, width: 90, textAlign: 'right' },
+  flexChunk: { alignItems: 'flex-end', gap: 1 },
+  editHint: { fontSize: 7, fontWeight: '700', letterSpacing: 1.2 },
 
   debtHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, flexWrap: 'wrap' },
   debtTotal: { fontSize: 30, fontWeight: '800', letterSpacing: 0.5 },

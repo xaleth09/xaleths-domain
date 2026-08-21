@@ -14,7 +14,7 @@
     { "id": "BL-01", "name": "Rent", "amount": { "type": "fixed", "value": 2300 }, "dueDay": 1, "autopay": false, "period": "P-31", "accountId": null },
     { "id": "BL-02", "name": "Geico", "amount": { "type": "fixed", "value": 160 }, "dueDay": 1, "autopay": true, "period": "P-31", "accountId": null },
     { "id": "BL-03", "name": "BoA", "amount": { "type": "fixed", "value": 160 }, "dueDay": 7, "autopay": true, "period": "P-31", "accountId": "AC-BOA" },
-    { "id": "BL-04", "name": "Chase Marriott", "amount": { "type": "flex", "note": "whatever cash is left" }, "dueDay": 7, "autopay": false, "period": "P-31", "accountId": "AC-MARR" },
+    { "id": "BL-04", "name": "Chase Marriott", "amount": { "type": "flex", "note": "whatever cash is left", "defaultValue": 1000 }, "dueDay": 7, "autopay": false, "period": "P-31", "accountId": "AC-MARR" },
     { "id": "BL-05", "name": "PG&E", "amount": { "type": "range", "min": 300, "max": 500 }, "dueDay": 11, "autopay": false, "period": "P-31", "accountId": null },
     { "id": "BL-06", "name": "Discover", "amount": { "type": "fixed", "value": 400 }, "dueDay": 13, "autopay": true, "period": "P-31", "accountId": "AC-DISC" },
     { "id": "BL-07", "name": "Chase SW", "amount": { "type": "fixed", "value": 400 }, "dueDay": 15, "autopay": true, "period": "P-31", "accountId": "AC-CHSW" },
@@ -25,9 +25,7 @@
     { "id": "BL-12", "name": "T-Mobile", "amount": { "type": "fixed", "value": 280 }, "dueDay": 24, "autopay": true, "period": "P-15", "accountId": null },
     { "id": "BL-13", "name": "Xfinity", "amount": { "type": "fixed", "value": 180 }, "dueDay": 25, "autopay": true, "period": "P-15", "accountId": null }
   ],
-  "paidLog": {
-    "2026-08": []
-  },
+  "paidLog": {},
   "accounts": [
     { "id": "AC-CHSW", "name": "Chase SW", "kind": "cc", "apr": null, "autopay": true, "minPayment": 400, "history": [{ "date": "2026-08-18", "balance": 8119 }] },
     { "id": "AC-BOA", "name": "BoA", "kind": "cc", "apr": null, "autopay": true, "minPayment": 160, "history": [{ "date": "2026-08-18", "balance": 6118 }] },

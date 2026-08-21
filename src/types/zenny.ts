@@ -2,16 +2,17 @@
 // Spec: yggdrasil members/robbi/projects/xaleths-domain/2026-08-18-zenny-financial-dashboard/
 // public/private/zenny-data.json is the single source of truth.
 //
-// PRIVACY: while the repo is public, the committed file must carry demo: true
-// and contain no real balances, income, or vest specifics. The real file is
-// staged in the private yggdrasil repo and swaps in after the visibility flip.
+// PRIVACY: real data lives here by Robbi's explicit 2026-08-18 ruling (see the
+// zenny workstream in yggdrasil) — intentional, not an incident.
 
 export type AccountKind = 'cc' | 'loan' | 'student' | 'auto';
 
 export type BillAmount =
   | { type: 'fixed'; value: number }
   | { type: 'range'; min: number; max: number }
-  | { type: 'flex'; note: string }; // e.g. "whatever cash is left"
+  // e.g. "whatever cash is left"; defaultValue is the planned amount used for
+  // period math until an actual amount is entered for the cycle.
+  | { type: 'flex'; note: string; defaultValue?: number };
 
 export interface Paycheck {
   id: string; // e.g. "P-15"
@@ -68,7 +69,11 @@ export interface ZennyData {
     paychecks: Paycheck[];
   };
   bills: Bill[];
-  /** Paid state per month: { "2026-08": ["BL-01", ...] } */
+  /**
+   * Paid state per PAY CYCLE, not per calendar month. Keys are
+   * `${paycheckId}:${cycleStartISO}` (e.g. "P-31:2026-08-31") — a period's
+   * cycle starts on its payday and its bills reset then.
+   */
   paidLog: Record<string, string[]>;
   accounts: Account[];
   equity: {
