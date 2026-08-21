@@ -147,12 +147,17 @@ function DebtPanelBody({ pal, accounts }: { pal: Pal; accounts: Account[] }) {
   const max = withBal.length ? withBal[0].bal : 1;
   const snapshots = Math.max(...accounts.map(a => a.history.length), 0);
   const missingApr = accounts.filter(a => a.apr == null).length;
+  // Never silently drop an account: unknown balances render as pending rows,
+  // and the total is labeled as excluding them.
+  const unknown = accounts.filter(a => currentBalance(a) == null);
 
   return (
     <>
       <View style={styles.debtHead}>
         <Text style={[styles.debtTotal, { color: pal.ink }]}>{money(total)}</Text>
-        <Text style={[styles.debtTotalLabel, { color: pal.ink3 }]}>total debt · {withBal.length} accounts</Text>
+        <Text style={[styles.debtTotalLabel, { color: pal.ink3 }]}>
+          total debt · {withBal.length} accounts{unknown.length ? ` · excludes ${unknown.length} pending` : ''}
+        </Text>
       </View>
       {withBal.map(({ a, bal }) => (
         <View key={a.id} style={styles.debtRow}>
@@ -169,6 +174,19 @@ function DebtPanelBody({ pal, accounts }: { pal: Pal; accounts: Account[] }) {
             {a.apr != null ? `${a.apr}% APR` : 'APR pending'}
             {a.minPayment != null ? ` · pays ${money(a.minPayment)}/mo` : ''}
             {a.autopay ? ' · auto' : ' · manual'}
+          </Text>
+        </View>
+      ))}
+      {unknown.map(a => (
+        <View key={a.id} style={styles.debtRow}>
+          <View style={styles.debtRowTop}>
+            <Text style={[styles.debtName, { color: pal.ink2 }]}>
+              {a.name} <Text style={{ color: pal.ink3, fontSize: 9 }}>{KIND_LABELS[a.kind]}</Text>
+            </Text>
+            <Text style={[styles.debtBal, { color: pal.inkAmber }]}>balance pending</Text>
+          </View>
+          <Text style={[styles.debtMeta, { color: pal.ink3 }]}>
+            {a.minPayment != null ? `pays ${money(a.minPayment)}/mo · ` : ''}{a.autopay ? 'auto' : 'manual'} · not in total until logged
           </Text>
         </View>
       ))}
