@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -59,7 +60,8 @@ const KIND_LABELS: Record<Account['kind'], string> = {
 };
 
 function money(n: number): string {
-  return `$${Math.round(n).toLocaleString()}`;
+  const v = Math.round(Math.abs(n)).toLocaleString();
+  return n < 0 ? `−$${v}` : `$${v}`;
 }
 
 function monthKey(d: Date): string {
@@ -104,8 +106,9 @@ function Chip({ pal, label, tone }: { pal: Pal; label: string; tone: 'accent' | 
 
 type PaidStatus = 'confirmed' | 'cleared' | 'overdue' | 'open';
 
-function BillRow({ pal, bill, status, account, onToggle }: {
+function BillRow({ pal, bill, status, account, onToggle, flexEntry }: {
   pal: Pal; bill: Bill; status: PaidStatus; account?: Account; onToggle?: () => void;
+  flexEntry?: { value: string; onChange: (v: string) => void };
 }) {
   const amt = billAmountValue(bill.amount);
   const bal = account ? currentBalance(account) : null;
@@ -138,11 +141,23 @@ function BillRow({ pal, bill, status, account, onToggle }: {
           {bal != null ? ` · balance ${money(bal)}` : ''}
         </Text>
       </View>
-      <Text style={[styles.billAmt, { color: done ? pal.ink3 : pal.ink2 }]}>{amt.display}</Text>
+      {flexEntry ? (
+        <TextInput
+          value={flexEntry.value}
+          onChangeText={flexEntry.onChange}
+          placeholder={amt.display}
+          placeholderTextColor={pal.ink3}
+          inputMode="decimal"
+          style={[styles.flexInput, { color: pal.ink, borderColor: pal.line }]}
+        />
+      ) : (
+        <Text style={[styles.billAmt, { color: done ? pal.ink3 : pal.ink2 }]}>{amt.display}</Text>
+      )}
     </View>
   );
   // Manual bills are tappable; the check is device-local until the write path
   // lands (paidLog in the JSON stays canonical and wins across devices).
+  // Flex bills instead confirm by having an amount typed in.
   return onToggle ? <Pressable onPress={onToggle}>{row}</Pressable> : row;
 }
 
@@ -255,6 +270,28 @@ export default function ZennyScreen() {
       return next;
     });
   };
+  // Flex-bill amounts ("what did I actually put toward it") — typing an amount
+  // IS the paid signal for a flex bill. Device-local, same deal as the checks.
+  const flexKey = `zenny-local-flex-${monthKey(new Date())}`;
+  const [localFlex, setLocalFlex] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    try {
+      const raw = window.localStorage.getItem(flexKey);
+      if (raw) setLocalFlex(JSON.parse(raw));
+    } catch {}
+  }, [flexKey]);
+  const setFlexAmount = (id: string, value: string) => {
+    setLocalFlex(prev => {
+      const next = { ...prev, [id]: value.replace(/[^0-9.]/g, '') };
+      try { window.localStorage.setItem(flexKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  const flexValue = (id: string): number => {
+    const n = parseFloat(localFlex[id] ?? '');
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -296,6 +333,7 @@ export default function ZennyScreen() {
     const accountById = new Map(d.accounts.map(a => [a.id, a]));
     const statusOf = (b: Bill): PaidStatus => {
       if (paid.has(b.id)) return 'confirmed';
+      if (b.amount.type === 'flex' && flexValue(b.id) > 0) return 'confirmed';
       if (b.autopay && today >= b.dueDay) return 'cleared';
       if (!b.autopay && today > b.dueDay) return 'overdue';
       return 'open';
@@ -308,8 +346,11 @@ export default function ZennyScreen() {
       let hasRange = false;
       for (const b of bills) {
         const v = billAmountValue(b.amount);
-        if (v.mid == null) hasFlex = true;
-        else {
+        if (v.mid == null) {
+          const entered = flexValue(b.id);
+          if (entered > 0) committed += entered;
+          else hasFlex = true;
+        } else {
           committed += v.mid;
           if (b.amount.type === 'range') hasRange = true;
         }
@@ -364,14 +405,15 @@ export default function ZennyScreen() {
                       bill={b}
                       status={statusOf(b)}
                       account={b.accountId ? accountById.get(b.accountId) : undefined}
-                      onToggle={!b.autopay ? () => toggleLocal(b.id) : undefined}
+                      onToggle={!b.autopay && b.amount.type !== 'flex' ? () => toggleLocal(b.id) : undefined}
+                      flexEntry={b.amount.type === 'flex' ? { value: localFlex[b.id] ?? '', onChange: v => setFlexAmount(b.id, v) } : undefined}
                     />
                   ))}
                   <View style={styles.periodFoot}>
                     <Text style={[styles.periodFootText, { color: overdueCount ? pal.danger : pal.ink3 }]}>
                       {paidCount}/{bills.length} paid{overdueCount ? ` · ${overdueCount} OVERDUE` : ''} · {hasRange ? '~' : ''}{money(committed)} committed{hasFlex ? ' + flex' : ''}
                     </Text>
-                    <Text style={[styles.periodLeft, { color: leftover > 400 ? pal.good : pal.inkAmber }]}>
+                    <Text style={[styles.periodLeft, { color: leftover < 0 ? pal.danger : leftover > 400 ? pal.good : pal.inkAmber }]}>
                       {money(leftover)} left
                     </Text>
                   </View>
@@ -468,7 +510,7 @@ export default function ZennyScreen() {
         <Text style={[styles.footer, { color: pal.ink3 }]}>zenny/v1 · updated {d.updated}</Text>
       </>
     );
-  }, [state, pal, twoCol, localPaid]);
+  }, [state, pal, twoCol, localPaid, localFlex]);
 
   return (
     <View style={[styles.container, { backgroundColor: pal.page }]}>
@@ -539,6 +581,7 @@ const styles = StyleSheet.create({
   autoTag: { fontSize: 8, fontWeight: '700', letterSpacing: 1.5 },
   billMeta: { fontSize: 10, letterSpacing: 0.3 },
   billAmt: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  flexInput: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'], borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4, minWidth: 110, textAlign: 'right' },
 
   debtHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, flexWrap: 'wrap' },
   debtTotal: { fontSize: 30, fontWeight: '800', letterSpacing: 0.5 },
