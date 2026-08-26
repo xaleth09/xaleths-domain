@@ -468,6 +468,20 @@ export default function ZennyScreen() {
     const runway1 = Number.isFinite(checkingNum) && currentPeriod ? checkingNum - currentPeriod.upcoming : null;
     const runway2 = runway1 != null ? runway1 + nextPay.p.net - nextPeriodCommitted : null;
     const checkingStale = checking.date && checking.date !== fmtDate(now);
+    // Max toward the flex bill (Marriott): everything spendable through the end
+    // of the flex bill's window, with the flex bill itself excluded from the math.
+    const flexBill = d.bills.find(b => b.amount.type === 'flex');
+    let maxFlex: number | null = null;
+    if (flexBill && runway1 != null && statusOf(flexBill) !== 'confirmed') {
+      const fEff = flexEffective(flexBill);
+      if (flexBill.period === currentWindow[0]) {
+        const st = statusOf(flexBill);
+        const unpaidFlex = st === 'open' || st === 'overdue' ? fEff : 0;
+        maxFlex = runway1 + unpaidFlex; // it was subtracted in upcoming; add it back
+      } else if (flexBill.period === nextPay.p.id) {
+        maxFlex = runway1 + nextPay.p.net - (nextPeriodCommitted - fEff);
+      }
+    }
 
     const monthNet = d.income.paychecks.reduce((s, p) => s + p.net, 0);
     const monthCommitted = periods.reduce((s, x) => s + x.committed, 0);
@@ -545,8 +559,8 @@ export default function ZennyScreen() {
           </View>
 
           <View style={twoCol ? styles.rowItem : undefined}>
-            <Panel pal={pal} title="SAFE TO SPEND" kicker="income − committed bills, per month">
-              <View style={[styles.runwayBox, { borderColor: pal.lineSoft, backgroundColor: pal.surface2 }]}>
+            <View style={styles.stack}>
+              <Panel pal={pal} title="CASH RUNWAY" kicker="right now — from your checking balance">
                 <View style={styles.runwayHead}>
                   <Text style={[styles.vestLabel, { color: pal.ink3 }]}>
                     CHECKING NOW{checkingStale ? ` · entered ${checking.date}` : ''}
@@ -564,7 +578,7 @@ export default function ZennyScreen() {
                   <>
                     <View style={styles.runwayLine}>
                       <Text style={[styles.runwayLabel, { color: pal.ink2 }]}>
-                        til {fmtShort(nextPay.date)} · {money(currentPeriod.upcoming)} in bills still coming out
+                        Left til {fmtShort(nextPay.date)} — {money(currentPeriod.upcoming)} still to pay this window
                       </Text>
                       <Text style={[styles.runwayVal, { color: runway1 < 0 ? pal.danger : runway1 < 300 ? pal.inkAmber : pal.good }]}>
                         {money(runway1)}
@@ -572,48 +586,63 @@ export default function ZennyScreen() {
                     </View>
                     <View style={styles.runwayLine}>
                       <Text style={[styles.runwayLabel, { color: pal.ink2 }]}>
-                        + {money(nextPay.p.net)} check − {money(nextPeriodCommitted)} its bills · til {followingDate ? fmtShort(followingDate) : 'next check'}
+                        Left til {followingDate ? fmtShort(followingDate) : 'the check after'} — +{money(nextPay.p.net)} check, −{money(nextPeriodCommitted)} its bills
                       </Text>
                       <Text style={[styles.runwayVal, { color: runway2 < 0 ? pal.danger : runway2 < 300 ? pal.inkAmber : pal.good }]}>
                         {money(runway2)}
                       </Text>
                     </View>
+                    {maxFlex != null && flexBill ? (
+                      <View style={[styles.maxFlexBox, { borderColor: pal.warmLine }]}>
+                        <View style={styles.runwayLine}>
+                          <Text style={[styles.runwayLabel, { color: pal.warm, fontWeight: '700' }]}>
+                            MAX → {flexBill.name.toUpperCase()}
+                          </Text>
+                          <Text style={[styles.runwayVal, { color: pal.warm }]}>{money(maxFlex)}</Text>
+                        </View>
+                        <Text style={[styles.cardMetaSm, { color: pal.ink3 }]}>
+                          paying this lands you at $0 — keep food/gas margin and put the real number in the bill's ✎
+                        </Text>
+                      </View>
+                    ) : null}
                   </>
                 ) : (
                   <Text style={[styles.cardMetaSm, { color: pal.ink3 }]}>
                     Enter your checking balance to see runway until each upcoming paycheck.
                   </Text>
                 )}
-              </View>
-              <View style={styles.debtHead}>
-                <Text style={[styles.debtTotal, { color: monthLeft > 0 ? pal.good : pal.danger }]}>{money(monthLeft)}</Text>
-                <Text style={[styles.debtTotalLabel, { color: pal.ink3 }]}>
-                  before food, gas, and everything unbilled
-                </Text>
-              </View>
-              <Text style={[styles.note, { color: pal.ink2 }]}>
-                {money(monthNet)} in − {money(monthCommitted)} committed. This number is the whole budget story: what
-                you spend past it comes out of savings.
-              </Text>
-              {d.savings.balance != null && d.savings.target != null ? (
-                <View style={styles.savingsWrap}>
-                  <View style={styles.debtRowTop}>
-                    <Text style={[styles.debtName, { color: pal.ink }]}>Savings</Text>
-                    <Text style={[styles.debtBal, { color: pal.ink2 }]}>
-                      {money(d.savings.balance)} / {money(d.savings.target)}
-                    </Text>
-                  </View>
-                  <View style={[styles.debtTrack, { backgroundColor: pal.neutralBg }]}>
-                    <View style={[styles.debtFill, {
-                      width: `${Math.min((d.savings.balance / d.savings.target) * 100, 100)}%`,
-                      backgroundColor: pal.markAmber,
-                    }]} />
-                  </View>
+              </Panel>
+
+              <Panel pal={pal} title="AVERAGE MONTH" kicker="structural — income vs all bills, not your checking">
+                <View style={styles.debtHead}>
+                  <Text style={[styles.debtTotal, { color: monthLeft > 0 ? pal.good : pal.danger }]}>{money(monthLeft)}</Text>
+                  <Text style={[styles.debtTotalLabel, { color: pal.ink3 }]}>
+                    per typical month, before food & gas
+                  </Text>
                 </View>
-              ) : (
-                <Text style={[styles.note, { color: pal.ink3 }]}>No savings target set yet.</Text>
-              )}
-            </Panel>
+                <Text style={[styles.note, { color: pal.ink2 }]}>
+                  {money(monthNet)} in − {money(monthCommitted)} committed (incl. the {flexBill && flexBill.amount.type === 'flex' ? money(flexBill.amount.defaultValue ?? 0) : '—'} planned Marriott). What you spend past this comes out of savings.
+                </Text>
+                {d.savings.balance != null && d.savings.target != null ? (
+                  <View style={styles.savingsWrap}>
+                    <View style={styles.debtRowTop}>
+                      <Text style={[styles.debtName, { color: pal.ink }]}>Savings</Text>
+                      <Text style={[styles.debtBal, { color: pal.ink2 }]}>
+                        {money(d.savings.balance)} / {money(d.savings.target)}
+                      </Text>
+                    </View>
+                    <View style={[styles.debtTrack, { backgroundColor: pal.neutralBg }]}>
+                      <View style={[styles.debtFill, {
+                        width: `${Math.min((d.savings.balance / d.savings.target) * 100, 100)}%`,
+                        backgroundColor: pal.markAmber,
+                      }]} />
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={[styles.note, { color: pal.ink3 }]}>No savings target set yet.</Text>
+                )}
+              </Panel>
+            </View>
           </View>
         </View>
 
@@ -751,7 +780,8 @@ const styles = StyleSheet.create({
 
   savingsWrap: { gap: 3, marginTop: spacing.sm },
 
-  runwayBox: { borderWidth: 1, padding: spacing.md, gap: spacing.sm },
+  stack: { gap: spacing.xl },
+  maxFlexBox: { borderWidth: 1, borderStyle: 'dashed', padding: spacing.md, gap: 4, marginTop: spacing.xs },
   runwayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   runwayLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: spacing.sm, flexWrap: 'wrap' },
   runwayLabel: { fontSize: 11, lineHeight: 15, flexShrink: 1 },
