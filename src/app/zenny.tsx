@@ -95,6 +95,17 @@ function dueDateInCycle(dueDay: number, start: Date): Date {
   return d;
 }
 
+function nextPaydayAfter(payday: number, now: Date): Date {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let c = clampDate(today.getFullYear(), today.getMonth(), payday);
+  if (c <= today) c = clampDate(today.getFullYear(), today.getMonth() + 1, payday);
+  return c;
+}
+
+function fmtShort(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -332,6 +343,21 @@ export default function ZennyScreen() {
       return next;
     });
   };
+  // Checking-account balance for the runway math — device-local, dated so
+  // staleness is visible. Entered fresh on whichever device is in hand.
+  const [checking, setChecking] = useState<{ v: string; date: string }>({ v: '', date: '' });
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    try {
+      const raw = window.localStorage.getItem('zenny-checking');
+      if (raw) setChecking(JSON.parse(raw));
+    } catch {}
+  }, []);
+  const setCheckingValue = (v: string) => {
+    const next = { v: v.replace(/[^0-9.]/g, ''), date: fmtDate(new Date()) };
+    setChecking(next);
+    try { window.localStorage.setItem('zenny-checking', JSON.stringify(next)); } catch {}
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -416,8 +442,32 @@ export default function ZennyScreen() {
       const statuses = bills.map(b => statusOf(b));
       const paidCount = statuses.filter(st => st === 'confirmed' || st === 'cleared').length;
       const overdueCount = statuses.filter(st => st === 'overdue').length;
-      return { p, bills, committed, leftover, hasFlex, hasRange, paidCount, overdueCount };
+      // Money still leaving checking this cycle: open (not yet due/paid) and
+      // overdue (still owed). Confirmed/cleared already left.
+      let upcoming = 0;
+      bills.forEach((b, i) => {
+        if (statuses[i] !== 'open' && statuses[i] !== 'overdue') return;
+        if (b.amount.type === 'flex') upcoming += flexEffective(b);
+        else upcoming += billAmountValue(b.amount).mid ?? 0;
+      });
+      return { p, bills, committed, leftover, hasFlex, hasRange, paidCount, overdueCount, upcoming };
     });
+
+    // --- Runway: checking − what's still coming out, then + next check − its bills.
+    // The current window belongs to the paycheck whose cycle started most recently;
+    // paydays alternate, so the later next-occurrence is the window after next.
+    const checkingNum = parseFloat(checking.v);
+    const nextDates = d.income.paychecks
+      .map(p => ({ p, date: nextPaydayAfter(p.day, now) }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    const currentWindow = [...cycles.entries()].sort((a, b) => b[1].start.getTime() - a[1].start.getTime())[0];
+    const currentPeriod = periods.find(x => x.p.id === currentWindow[0]);
+    const nextPay = nextDates[0];
+    const followingDate = nextDates[1]?.date;
+    const nextPeriodCommitted = periods.find(x => x.p.id === nextPay.p.id)?.committed ?? 0;
+    const runway1 = Number.isFinite(checkingNum) && currentPeriod ? checkingNum - currentPeriod.upcoming : null;
+    const runway2 = runway1 != null ? runway1 + nextPay.p.net - nextPeriodCommitted : null;
+    const checkingStale = checking.date && checking.date !== fmtDate(now);
 
     const monthNet = d.income.paychecks.reduce((s, p) => s + p.net, 0);
     const monthCommitted = periods.reduce((s, x) => s + x.committed, 0);
@@ -496,6 +546,45 @@ export default function ZennyScreen() {
 
           <View style={twoCol ? styles.rowItem : undefined}>
             <Panel pal={pal} title="SAFE TO SPEND" kicker="income − committed bills, per month">
+              <View style={[styles.runwayBox, { borderColor: pal.lineSoft, backgroundColor: pal.surface2 }]}>
+                <View style={styles.runwayHead}>
+                  <Text style={[styles.vestLabel, { color: pal.ink3 }]}>
+                    CHECKING NOW{checkingStale ? ` · entered ${checking.date}` : ''}
+                  </Text>
+                  <TextInput
+                    value={checking.v}
+                    onChangeText={setCheckingValue}
+                    placeholder="$ balance"
+                    placeholderTextColor={pal.ink3}
+                    inputMode="decimal"
+                    style={[styles.flexInput, { color: pal.ink, borderColor: checkingStale ? pal.warmLine : pal.line }]}
+                  />
+                </View>
+                {runway1 != null && runway2 != null && currentPeriod ? (
+                  <>
+                    <View style={styles.runwayLine}>
+                      <Text style={[styles.runwayLabel, { color: pal.ink2 }]}>
+                        til {fmtShort(nextPay.date)} · {money(currentPeriod.upcoming)} in bills still coming out
+                      </Text>
+                      <Text style={[styles.runwayVal, { color: runway1 < 0 ? pal.danger : runway1 < 300 ? pal.inkAmber : pal.good }]}>
+                        {money(runway1)}
+                      </Text>
+                    </View>
+                    <View style={styles.runwayLine}>
+                      <Text style={[styles.runwayLabel, { color: pal.ink2 }]}>
+                        + {money(nextPay.p.net)} check − {money(nextPeriodCommitted)} its bills · til {followingDate ? fmtShort(followingDate) : 'next check'}
+                      </Text>
+                      <Text style={[styles.runwayVal, { color: runway2 < 0 ? pal.danger : runway2 < 300 ? pal.inkAmber : pal.good }]}>
+                        {money(runway2)}
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  <Text style={[styles.cardMetaSm, { color: pal.ink3 }]}>
+                    Enter your checking balance to see runway until each upcoming paycheck.
+                  </Text>
+                )}
+              </View>
               <View style={styles.debtHead}>
                 <Text style={[styles.debtTotal, { color: monthLeft > 0 ? pal.good : pal.danger }]}>{money(monthLeft)}</Text>
                 <Text style={[styles.debtTotalLabel, { color: pal.ink3 }]}>
@@ -574,7 +663,7 @@ export default function ZennyScreen() {
         <Text style={[styles.footer, { color: pal.ink3 }]}>zenny/v1 · updated {d.updated}</Text>
       </>
     );
-  }, [state, pal, twoCol, localPaid, localFlex, editingFlex]);
+  }, [state, pal, twoCol, localPaid, localFlex, editingFlex, checking]);
 
   return (
     <View style={[styles.container, { backgroundColor: pal.page }]}>
@@ -661,6 +750,13 @@ const styles = StyleSheet.create({
   debtMeta: { fontSize: 9.5, letterSpacing: 0.3 },
 
   savingsWrap: { gap: 3, marginTop: spacing.sm },
+
+  runwayBox: { borderWidth: 1, padding: spacing.md, gap: spacing.sm },
+  runwayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+  runwayLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: spacing.sm, flexWrap: 'wrap' },
+  runwayLabel: { fontSize: 11, lineHeight: 15, flexShrink: 1 },
+  runwayVal: { fontSize: 16, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  cardMetaSm: { fontSize: 10.5, lineHeight: 15 },
 
   vestGrid: { flexDirection: 'row', gap: spacing.md },
   vestCell: { flex: 1, borderWidth: 1, padding: spacing.md, gap: 2, minWidth: 150 },

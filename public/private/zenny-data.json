@@ -1,40 +1,286 @@
 {
   "schema": "zenny/v1",
-  "updated": "2026-08-18",
+  "updated": "2026-08-23",
   "demo": false,
-  "note": "Balances as of 2026-08-18. Pending: APRs for every account, Nelnet + car balances, exact cliff date + post-cliff vest schedule, savings baseline/target. Discover payment is $300 min + $100 extra principal.",
+  "note": "Balances as of 2026-08-18. Period rule (Robbi, 2026-08-23): bills due on/after the 15th and before the 1st belong to the second half (P-15). Pending: APRs, Nelnet + car balances, exact cliff date + post-cliff schedule, savings baseline/target. Discover payment is $300 min + $100 extra principal.",
   "income": {
     "grossAnnual": 200000,
     "paychecks": [
-      { "id": "P-31", "day": 31, "net": 5180 },
-      { "id": "P-15", "day": 15, "net": 5130 }
+      {
+        "id": "P-31",
+        "day": 31,
+        "net": 5180
+      },
+      {
+        "id": "P-15",
+        "day": 15,
+        "net": 5130
+      }
     ]
   },
   "bills": [
-    { "id": "BL-01", "name": "Rent", "amount": { "type": "fixed", "value": 2300 }, "dueDay": 1, "autopay": false, "period": "P-31", "accountId": null },
-    { "id": "BL-02", "name": "Geico", "amount": { "type": "fixed", "value": 160 }, "dueDay": 1, "autopay": true, "period": "P-31", "accountId": null },
-    { "id": "BL-03", "name": "BoA", "amount": { "type": "fixed", "value": 160 }, "dueDay": 7, "autopay": true, "period": "P-31", "accountId": "AC-BOA" },
-    { "id": "BL-04", "name": "Chase Marriott", "amount": { "type": "flex", "note": "whatever cash is left", "defaultValue": 1000 }, "dueDay": 7, "autopay": false, "period": "P-31", "accountId": "AC-MARR" },
-    { "id": "BL-05", "name": "PG&E", "amount": { "type": "range", "min": 300, "max": 500 }, "dueDay": 11, "autopay": false, "period": "P-31", "accountId": null },
-    { "id": "BL-06", "name": "Discover", "amount": { "type": "fixed", "value": 400 }, "dueDay": 13, "autopay": true, "period": "P-31", "accountId": "AC-DISC" },
-    { "id": "BL-07", "name": "Chase SW", "amount": { "type": "fixed", "value": 400 }, "dueDay": 15, "autopay": true, "period": "P-31", "accountId": "AC-CHSW" },
-    { "id": "BL-08", "name": "Car", "amount": { "type": "fixed", "value": 1300 }, "dueDay": 20, "autopay": true, "period": "P-31", "accountId": "AC-CAR" },
-    { "id": "BL-09", "name": "Nelnet", "amount": { "type": "fixed", "value": 160 }, "dueDay": 21, "autopay": true, "period": "P-15", "accountId": "AC-NELN" },
-    { "id": "BL-10", "name": "LC Loan", "amount": { "type": "fixed", "value": 1260 }, "dueDay": 21, "autopay": true, "period": "P-15", "accountId": "AC-LC" },
-    { "id": "BL-11", "name": "SoFi", "amount": { "type": "fixed", "value": 600 }, "dueDay": 24, "autopay": true, "period": "P-15", "accountId": "AC-SOFI" },
-    { "id": "BL-12", "name": "T-Mobile", "amount": { "type": "fixed", "value": 280 }, "dueDay": 24, "autopay": true, "period": "P-15", "accountId": null },
-    { "id": "BL-13", "name": "Xfinity", "amount": { "type": "fixed", "value": 180 }, "dueDay": 25, "autopay": true, "period": "P-15", "accountId": null }
+    {
+      "id": "BL-01",
+      "name": "Rent",
+      "amount": {
+        "type": "fixed",
+        "value": 2300
+      },
+      "dueDay": 1,
+      "autopay": false,
+      "period": "P-31",
+      "accountId": null
+    },
+    {
+      "id": "BL-02",
+      "name": "Geico",
+      "amount": {
+        "type": "fixed",
+        "value": 160
+      },
+      "dueDay": 1,
+      "autopay": true,
+      "period": "P-31",
+      "accountId": null
+    },
+    {
+      "id": "BL-03",
+      "name": "BoA",
+      "amount": {
+        "type": "fixed",
+        "value": 160
+      },
+      "dueDay": 7,
+      "autopay": true,
+      "period": "P-31",
+      "accountId": "AC-BOA"
+    },
+    {
+      "id": "BL-04",
+      "name": "Chase Marriott",
+      "amount": {
+        "type": "flex",
+        "note": "whatever cash is left",
+        "defaultValue": 1000
+      },
+      "dueDay": 7,
+      "autopay": false,
+      "period": "P-31",
+      "accountId": "AC-MARR"
+    },
+    {
+      "id": "BL-05",
+      "name": "PG&E",
+      "amount": {
+        "type": "fixed",
+        "value": 400
+      },
+      "dueDay": 11,
+      "autopay": false,
+      "period": "P-31",
+      "accountId": null
+    },
+    {
+      "id": "BL-06",
+      "name": "Discover",
+      "amount": {
+        "type": "fixed",
+        "value": 400
+      },
+      "dueDay": 16,
+      "autopay": true,
+      "period": "P-15",
+      "accountId": "AC-DISC"
+    },
+    {
+      "id": "BL-07",
+      "name": "Chase SW",
+      "amount": {
+        "type": "fixed",
+        "value": 400
+      },
+      "dueDay": 17,
+      "autopay": true,
+      "period": "P-15",
+      "accountId": "AC-CHSW"
+    },
+    {
+      "id": "BL-08",
+      "name": "Car",
+      "amount": {
+        "type": "fixed",
+        "value": 1300
+      },
+      "dueDay": 9,
+      "autopay": true,
+      "period": "P-31",
+      "accountId": "AC-CAR"
+    },
+    {
+      "id": "BL-09",
+      "name": "Nelnet",
+      "amount": {
+        "type": "fixed",
+        "value": 160
+      },
+      "dueDay": 21,
+      "autopay": true,
+      "period": "P-15",
+      "accountId": "AC-NELN"
+    },
+    {
+      "id": "BL-10",
+      "name": "LC Loan",
+      "amount": {
+        "type": "fixed",
+        "value": 1260
+      },
+      "dueDay": 21,
+      "autopay": true,
+      "period": "P-15",
+      "accountId": "AC-LC"
+    },
+    {
+      "id": "BL-11",
+      "name": "SoFi",
+      "amount": {
+        "type": "fixed",
+        "value": 600
+      },
+      "dueDay": 24,
+      "autopay": true,
+      "period": "P-15",
+      "accountId": "AC-SOFI"
+    },
+    {
+      "id": "BL-12",
+      "name": "T-Mobile",
+      "amount": {
+        "type": "fixed",
+        "value": 280
+      },
+      "dueDay": 24,
+      "autopay": true,
+      "period": "P-15",
+      "accountId": null
+    },
+    {
+      "id": "BL-13",
+      "name": "Xfinity",
+      "amount": {
+        "type": "fixed",
+        "value": 180
+      },
+      "dueDay": 28,
+      "autopay": true,
+      "period": "P-15",
+      "accountId": null
+    }
   ],
   "paidLog": {},
   "accounts": [
-    { "id": "AC-CHSW", "name": "Chase SW", "kind": "cc", "apr": null, "autopay": true, "minPayment": 400, "history": [{ "date": "2026-08-18", "balance": 8119 }] },
-    { "id": "AC-BOA", "name": "BoA", "kind": "cc", "apr": null, "autopay": true, "minPayment": 160, "history": [{ "date": "2026-08-18", "balance": 6118 }] },
-    { "id": "AC-DISC", "name": "Discover", "kind": "cc", "apr": null, "autopay": true, "minPayment": 400, "history": [{ "date": "2026-08-18", "balance": 12000 }] },
-    { "id": "AC-MARR", "name": "Chase Marriott", "kind": "cc", "apr": null, "autopay": false, "minPayment": null, "history": [{ "date": "2026-08-18", "balance": 12000 }] },
-    { "id": "AC-LC", "name": "LC Loan", "kind": "loan", "apr": null, "autopay": true, "minPayment": 1260, "history": [{ "date": "2026-08-18", "balance": 19600 }] },
-    { "id": "AC-SOFI", "name": "SoFi", "kind": "loan", "apr": null, "autopay": true, "minPayment": 600, "history": [{ "date": "2026-08-18", "balance": 9700 }] },
-    { "id": "AC-NELN", "name": "Nelnet", "kind": "student", "apr": null, "autopay": true, "minPayment": 160, "history": [] },
-    { "id": "AC-CAR", "name": "Car loan", "kind": "auto", "apr": null, "autopay": true, "minPayment": 1300, "history": [] }
+    {
+      "id": "AC-CHSW",
+      "name": "Chase SW",
+      "kind": "cc",
+      "apr": null,
+      "autopay": true,
+      "minPayment": 400,
+      "history": [
+        {
+          "date": "2026-08-18",
+          "balance": 8119
+        }
+      ]
+    },
+    {
+      "id": "AC-BOA",
+      "name": "BoA",
+      "kind": "cc",
+      "apr": null,
+      "autopay": true,
+      "minPayment": 160,
+      "history": [
+        {
+          "date": "2026-08-18",
+          "balance": 6118
+        }
+      ]
+    },
+    {
+      "id": "AC-DISC",
+      "name": "Discover",
+      "kind": "cc",
+      "apr": null,
+      "autopay": true,
+      "minPayment": 400,
+      "history": [
+        {
+          "date": "2026-08-18",
+          "balance": 12000
+        }
+      ]
+    },
+    {
+      "id": "AC-MARR",
+      "name": "Chase Marriott",
+      "kind": "cc",
+      "apr": null,
+      "autopay": false,
+      "minPayment": null,
+      "history": [
+        {
+          "date": "2026-08-18",
+          "balance": 12000
+        }
+      ]
+    },
+    {
+      "id": "AC-LC",
+      "name": "LC Loan",
+      "kind": "loan",
+      "apr": null,
+      "autopay": true,
+      "minPayment": 1260,
+      "history": [
+        {
+          "date": "2026-08-18",
+          "balance": 19600
+        }
+      ]
+    },
+    {
+      "id": "AC-SOFI",
+      "name": "SoFi",
+      "kind": "loan",
+      "apr": null,
+      "autopay": true,
+      "minPayment": 600,
+      "history": [
+        {
+          "date": "2026-08-18",
+          "balance": 9700
+        }
+      ]
+    },
+    {
+      "id": "AC-NELN",
+      "name": "Nelnet",
+      "kind": "student",
+      "apr": null,
+      "autopay": true,
+      "minPayment": 160,
+      "history": []
+    },
+    {
+      "id": "AC-CAR",
+      "name": "Car loan",
+      "kind": "auto",
+      "apr": null,
+      "autopay": true,
+      "minPayment": 1300,
+      "history": []
+    }
   ],
   "equity": {
     "grants": [
@@ -44,12 +290,21 @@
         "ticker": "HNGE",
         "totalShares": 4555,
         "vests": [
-          { "date": "2026-10-31", "shares": 1138, "pct": 25, "plan": "Sell immediately → debt paydown" }
+          {
+            "date": "2026-10-31",
+            "shares": 1138,
+            "pct": 25,
+            "plan": "Sell immediately → debt paydown"
+          }
         ],
         "note": "First cliff = 25% of 4,555 ≈ 1,138 shares. Exact cliff date and post-cliff schedule TBD — date set to end of October pending confirmation."
       }
     ],
-    "price": { "value": 88.8, "asOf": "2026-08-19", "source": "manual" },
+    "price": {
+      "value": 88.8,
+      "asOf": "2026-08-19",
+      "source": "manual"
+    },
     "withholdingPct": 0.4
   },
   "savings": {
