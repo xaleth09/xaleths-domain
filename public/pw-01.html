@@ -125,6 +125,15 @@
   }
   .video-hud .vh-player::after { content: " ⇄"; opacity: 0.5; font-size: 10px; }
   .video-hud .vh-state { font-size: 9px; font-weight: 800; letter-spacing: 0.14em; color: var(--ink-2); }
+  .fs-tools {
+    position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 4;
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(8, 13, 26, 0.82);
+    border: 1px solid rgba(0, 212, 255, 0.4);
+    padding: 8px 12px;
+  }
+  .fs-tools input[type="range"] { flex: 1; min-width: 60px; }
+  .fs-tools .zlabel { font-size: 9px; font-weight: 800; letter-spacing: 0.12em; color: var(--ink-2); }
   .fs-btn {
     position: absolute; top: 8px; right: 8px; z-index: 4;
     padding: 10px 16px; font-size: 20px; line-height: 1.1;
@@ -328,7 +337,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 16</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 17</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -355,6 +364,12 @@
         <div class="video-frame">
           <div id="yt-player" hidden></div>
           <button class="btn fs-btn" id="btn-fullscreen" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
+          <div class="fs-tools" id="fs-tools" hidden>
+            <button class="btn" id="btn-roi-fs">SET TABLE AREA</button>
+            <span class="zlabel" id="fs-zoom-label" hidden>ZOOM</span>
+            <input id="cfg-zoom-fs" type="range" min="1" max="8" step="0.1" value="1" hidden>
+            <span class="video-time num" id="zoom-val-fs" hidden>1.0×</span>
+          </div>
           <div class="video-hud" id="video-hud" hidden>
             <div class="vh-secs num" id="vh-secs">–</div>
             <div class="vh-right">
@@ -1411,6 +1426,12 @@ function canvasPos(ev) {
   const r = els.cvOverlay.getBoundingClientRect();
   return { x: ev.clientX - r.left, y: ev.clientY - r.top };
 }
+const roiBtnFs = document.getElementById("btn-roi-fs");
+roiBtnFs.addEventListener("click", () => roiBtn.click());
+function syncRoiBtns() {
+  roiBtnFs.textContent = roiBtn.textContent;
+  roiBtnFs.classList.toggle("active", roiBtn.classList.contains("active"));
+}
 roiBtn.addEventListener("click", () => {
   if (vision.roi) {                        // clear
     vision.setRoi(null);
@@ -1460,19 +1481,31 @@ els.cvOverlay.addEventListener("pointerup", () => {
 /* ---------------- camera zoom ---------------- */
 function setupZoom() {
   const row = document.getElementById("zoom-row");
-  const slider = document.getElementById("cfg-zoom");
+  const sliders = [document.getElementById("cfg-zoom"), document.getElementById("cfg-zoom-fs")];
+  const vals = [document.getElementById("zoom-val"), document.getElementById("zoom-val-fs")];
+  const fsBits = [document.getElementById("fs-zoom-label"), sliders[1], vals[1]];
   const track = cameraStream && cameraStream.getVideoTracks()[0];
   const caps = track && track.getCapabilities ? track.getCapabilities() : {};
-  if (!caps.zoom) { row.hidden = true; row.dataset.avail = "0"; return; }
+  if (!caps.zoom) {
+    row.hidden = true; row.dataset.avail = "0";
+    fsBits.forEach(el => el.hidden = true);
+    return;
+  }
   row.hidden = false; row.dataset.avail = "1";
-  slider.min = caps.zoom.min; slider.max = caps.zoom.max;
-  slider.step = caps.zoom.step || 0.1;
-  slider.value = (track.getSettings && track.getSettings().zoom) || caps.zoom.min;
-  slider.oninput = () => {
-    track.applyConstraints({ advanced: [{ zoom: Number(slider.value) }] }).catch(() => {});
-    document.getElementById("zoom-val").textContent = Number(slider.value).toFixed(1) + "×";
-  };
-  document.getElementById("zoom-val").textContent = Number(slider.value).toFixed(1) + "×";
+  fsBits.forEach(el => el.hidden = false);
+  const start = (track.getSettings && track.getSettings().zoom) || caps.zoom.min;
+  sliders.forEach(sl => {
+    sl.min = caps.zoom.min; sl.max = caps.zoom.max;
+    sl.step = caps.zoom.step || 0.1;
+    sl.value = start;
+    sl.oninput = () => {
+      const z = Number(sl.value);
+      track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {});
+      sliders.forEach(o => { if (o !== sl) o.value = z; });
+      vals.forEach(v => v.textContent = z.toFixed(1) + "×");
+    };
+  });
+  vals.forEach(v => v.textContent = Number(start).toFixed(1) + "×");
 }
 
 /* ---------------- fullscreen ---------------- */
@@ -1858,7 +1891,10 @@ function updateHud(view, clockSecs) {
   const hud = document.getElementById("video-hud");
   const show = isFrameFullscreen();
   hud.hidden = !show;
+  const tools = document.getElementById("fs-tools");
+  tools.hidden = !show || MODE.current === "youtube";
   if (!show) return;
+  syncRoiBtns();
   const secsEl = document.getElementById("vh-secs");
   secsEl.textContent = clockSecs;
   secsEl.style.color = view.stateCls === "critical" || view.stateCls === "expired" ? "#ff4444"
