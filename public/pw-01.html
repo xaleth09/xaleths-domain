@@ -119,6 +119,17 @@
   .feed-state.lost    { color: var(--red); border-color: var(--red); }
   .video-time { font-size: 11px; color: var(--ink-2); letter-spacing: 0.06em; }
   .annot-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .url-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .url-input {
+    flex: 1; min-width: 0;
+    font-family: var(--font-num); font-size: 11px; letter-spacing: 0.02em;
+    color: var(--ink); background: var(--surface-2);
+    border: 1px solid rgba(0, 212, 255, 0.25); padding: 7px 10px;
+    outline: none;
+  }
+  .url-input:disabled { color: var(--ink-3); border-color: rgba(0, 212, 255, 0.12); }
+  .url-input:not(:disabled) { border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 166, 35, 0.35); }
+  .url-input.bad { border-color: var(--red); box-shadow: 0 0 8px rgba(255, 68, 68, 0.4); }
   .annot-help {
     display: none; margin-top: 10px; padding: 10px 12px;
     border: 1px solid rgba(245, 166, 35, 0.4); background: rgba(245, 166, 35, 0.05);
@@ -283,13 +294,19 @@
         <div class="video-frame">
           <div id="yt-player"></div>
           <div class="video-fallback" id="video-fallback" hidden>
-            <div class="t">VIDEO UNAVAILABLE</div>
-            <div class="d">The YouTube player failed to load. Table 1 holds in FEED LOST until the feed returns.</div>
+            <div class="t" id="fallback-title">VIDEO UNAVAILABLE</div>
+            <div class="d" id="fallback-detail">The YouTube player failed to load. Table 1 holds in FEED LOST until the feed returns.</div>
           </div>
         </div>
         <div class="video-meta">
           <span class="feed-state lost" id="feed-state">FEED IDLE</span>
           <span class="video-time num" id="video-time">--:--</span>
+        </div>
+        <div class="url-row">
+          <input id="video-url" class="url-input" type="text" spellcheck="false" autocomplete="off" disabled
+            placeholder="YouTube URL or video ID" aria-label="Video source URL">
+          <button class="btn" id="btn-edit-url">EDIT</button>
+          <button class="btn" id="btn-load-url" disabled>LOAD</button>
         </div>
         <div class="annot-row">
           <button class="btn" id="btn-annotate">ANNOTATE MODE</button>
@@ -509,10 +526,21 @@ const live = {
   lastAnnounced: -1,
 };
 
-try { live.draft = JSON.parse(localStorage.getItem("pw01-live-track") || "[]"); } catch (e) { live.draft = []; }
-function trackEvents() { return LIVE_TRACK.events.length ? LIVE_TRACK.events : live.draft; }
+/* ---- video source: default from LIVE_TRACK, overridable at runtime ---- */
+let currentVideoId = LIVE_TRACK.videoId;
+try { currentVideoId = localStorage.getItem("pw01-video-id") || currentVideoId; } catch (e) {}
+
+function draftKey() { return "pw01-live-track:" + currentVideoId; }
+function loadDraft() {
+  try { live.draft = JSON.parse(localStorage.getItem(draftKey()) || "[]"); } catch (e) { live.draft = []; }
+}
+loadDraft();
+/* Baked-in events belong to LIVE_TRACK.videoId only — never applied to a swapped-in video. */
+function trackEvents() {
+  return (currentVideoId === LIVE_TRACK.videoId && LIVE_TRACK.events.length) ? LIVE_TRACK.events : live.draft;
+}
 function saveDraft() {
-  try { localStorage.setItem("pw01-live-track", JSON.stringify(live.draft)); } catch (e) {}
+  try { localStorage.setItem(draftKey(), JSON.stringify(live.draft)); } catch (e) {}
   document.getElementById("annot-count").textContent = trackEvents().length + " track events";
 }
 
@@ -581,23 +609,41 @@ function fmtVideoT(t) {
 
 /* ---------------- YouTube IFrame API ---------------- */
 let ytPlayer = null, ytReady = false;
+const YT_ERRORS = {
+  2:   ["INVALID VIDEO ID", "YouTube rejected that video ID. Check the URL and LOAD another."],
+  5:   ["PLAYER ERROR", "The HTML5 player hit an error. Try reloading, or LOAD another video."],
+  100: ["VIDEO NOT FOUND", "That video is removed or private. LOAD another one."],
+  101: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video — some uploads on the same channel allow embedding."],
+  150: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video — some uploads on the same channel allow embedding."],
+};
 window.onYouTubeIframeAPIReady = function () {
   ytPlayer = new YT.Player("yt-player", {
-    videoId: LIVE_TRACK.videoId,
+    videoId: currentVideoId,
     playerVars: { rel: 0, modestbranding: 1 },
     events: {
       onReady: () => { ytReady = true; setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — video feed connected", "gold"); },
       onStateChange: (e) => {
-        if (e.data === YT.PlayerState.PLAYING) setFeed("PLAYING");
+        if (e.data === YT.PlayerState.PLAYING) { hideFallback(); setFeed("PLAYING"); }
         else if (e.data === YT.PlayerState.PAUSED) { setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_HOLD — playback paused"); }
         else if (e.data === YT.PlayerState.BUFFERING) setFeed("BUFFERING");
         else if (e.data === YT.PlayerState.ENDED) { setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_ENDED — video finished"); }
+        else if (e.data === YT.PlayerState.CUED) { hideFallback(); setFeed("PAUSED"); }
       },
-      onError: () => { setFeed("LOST"); showFallback(); pushFeed("TABLE 1", true, "FEED_LOST — player error", "foul"); },
+      onError: (e) => {
+        const [title, detail] = YT_ERRORS[e.data] || ["VIDEO UNAVAILABLE", "The player reported error " + e.data + ". LOAD another video."];
+        setFeed("LOST");
+        showFallback(title, detail);
+        pushFeed("TABLE 1", true, "FEED_LOST — " + title.toLowerCase() + " (yt error " + e.data + ")", "foul");
+      },
     },
   });
 };
-function showFallback() { document.getElementById("video-fallback").hidden = false; }
+function showFallback(title, detail) {
+  if (title) document.getElementById("fallback-title").textContent = title;
+  if (detail) document.getElementById("fallback-detail").textContent = detail;
+  document.getElementById("video-fallback").hidden = false;
+}
+function hideFallback() { document.getElementById("video-fallback").hidden = true; }
 (function loadYT() {
   const tag = document.createElement("script");
   tag.src = "https://www.youtube.com/iframe_api";
@@ -613,9 +659,53 @@ function setFeed(state) {
   el.className = "feed-state " + (state === "PLAYING" ? "playing" : state === "LOST" ? "lost" : "paused");
 }
 
+/* ---------------- video source input ---------------- */
+const urlInput = document.getElementById("video-url");
+const btnEditUrl = document.getElementById("btn-edit-url");
+const btnLoadUrl = document.getElementById("btn-load-url");
+urlInput.value = "https://youtu.be/" + currentVideoId;
+
+function parseYouTubeId(raw) {
+  const s = raw.trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const m = s.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+btnEditUrl.addEventListener("click", () => {
+  urlInput.disabled = !urlInput.disabled;
+  btnLoadUrl.disabled = urlInput.disabled;
+  btnEditUrl.classList.toggle("active", !urlInput.disabled);
+  btnEditUrl.textContent = urlInput.disabled ? "EDIT" : "LOCK";
+  if (!urlInput.disabled) { urlInput.focus(); urlInput.select(); }
+});
+
+function loadVideoFromInput() {
+  const id = parseYouTubeId(urlInput.value);
+  if (!id) {
+    urlInput.classList.add("bad");
+    setTimeout(() => urlInput.classList.remove("bad"), 1200);
+    return;
+  }
+  currentVideoId = id;
+  try { localStorage.setItem("pw01-video-id", id); } catch (e) {}
+  urlInput.value = "https://youtu.be/" + id;
+  urlInput.disabled = true; btnLoadUrl.disabled = true;
+  btnEditUrl.classList.remove("active"); btnEditUrl.textContent = "EDIT";
+  live.lastAnnounced = -1;
+  loadDraft(); saveDraft();
+  hideFallback();
+  pushFeed("TABLE 1", true, "VIDEO_SOURCE_CHANGED — " + id, "gold");
+  if (ytReady && ytPlayer.cueVideoById) ytPlayer.cueVideoById(id);
+  else showFallback("PLAYER UNAVAILABLE", "The YouTube player never loaded, so the new source can't play. Reload the page to retry.");
+}
+btnLoadUrl.addEventListener("click", loadVideoFromInput);
+urlInput.addEventListener("keydown", (ev) => { if (ev.key === "Enter") loadVideoFromInput(); });
+
 /* ---------------- annotate mode ---------------- */
 const KEYMAP = { a: "ADDRESS", s: "SHOT", b: "BREAK", t: "TURN", e: "EXT", g: "GAME" };
 document.addEventListener("keydown", (ev) => {
+  if (ev.target === urlInput) return;      // typing a URL, not annotating
   if (!live.annotate || !ytReady) return;
   const k = ev.key.toLowerCase();
   if (k === "z") {
