@@ -108,6 +108,7 @@
   .video-frame iframe, .video-frame #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   #cv-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
   #cv-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #cv-overlay.picking { pointer-events: auto; cursor: crosshair; touch-action: none; }
   .video-hud {
     position: absolute; top: 10px; left: 10px; z-index: 4;
     display: flex; align-items: center; gap: 12px;
@@ -327,7 +328,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 15</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 16</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -378,6 +379,11 @@
         <div class="src-row" id="camera-controls">
           <button class="btn" id="btn-camera">START CAMERA</button>
           <button class="btn" id="btn-flip" disabled>FLIP</button>
+        </div>
+        <div class="src-row" id="zoom-row" hidden>
+          <span style="font-size:9px;font-weight:800;letter-spacing:0.12em;color:var(--ink-2);">ZOOM</span>
+          <input id="cfg-zoom" type="range" style="flex:1;" min="1" max="8" step="0.1" value="1">
+          <span class="video-time num" id="zoom-val">1.0×</span>
         </div>
 
         <!-- file mode controls -->
@@ -454,6 +460,7 @@
           <div class="meter"><div class="k">BALLS / PERSONS</div><div class="v num" id="m-objs">0 / —</div></div>
         </div>
         <div class="vp-actions">
+          <button class="btn" id="btn-roi">SET TABLE AREA</button>
           <button class="btn" id="btn-adaptive">ADAPTIVE: ON</button>
           <button class="btn" id="btn-ext-live">EXTENSION +30</button>
           <button class="btn" id="btn-reset-live">RESET CLOCK</button>
@@ -678,6 +685,7 @@ function setMode(mode) {
   els.cvVideo.hidden = yt;
   els.cvOverlay.hidden = yt;
   els.cameraControls.hidden = mode !== "camera";
+  document.getElementById("zoom-row").hidden = mode !== "camera" || document.getElementById("zoom-row").dataset.avail !== "1";
   els.fileControls.hidden = mode !== "file";
   els.ytControls.hidden = !yt;
   els.ytAnnot.hidden = !yt;
@@ -748,6 +756,7 @@ async function startCamera() {
     document.getElementById("btn-camera").textContent = "STOP CAMERA";
     document.getElementById("btn-flip").disabled = false;
     pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — camera live (" + cameraFacing + ")", "gold");
+    setupZoom();
     vision.start();
   } catch (err) {
     if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
@@ -769,6 +778,8 @@ document.addEventListener("pointerdown", () => {
 });
 function stopCamera() {
   if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  const zr = document.getElementById("zoom-row");
+  zr.hidden = true; zr.dataset.avail = "0";
   if (els.cvVideo.srcObject) els.cvVideo.srcObject = null;
   document.getElementById("btn-camera").textContent = "START CAMERA";
   document.getElementById("btn-flip").disabled = true;
@@ -827,6 +838,7 @@ const vision = {
   balls: [], intrusion: false, intrusions: [],
   motionEma: 0, restSince: 0, addressSince: 0, idleSince: 0,
   camShift: { dx: 0, dy: 0, unstable: false }, alignOff: 0, lastUnstableAt: 0, unstableAnnounced: false, camMotionEma: 0,
+  roi: null,
   state: "OFF",          // OFF|SEARCHING|READY|ADDRESSING|ROLLING|EXPIRED
   clockStart: 0, clockLimit: 30, extUsed: false,
   lastEvent: "—", measuredFps: 0, frameCost: 0, fpsWindow: [],
@@ -878,14 +890,27 @@ const vision = {
     this.meters();
   },
 
+  setRoi(roi) {
+    this.roi = roi;                       // normalized {x,y,w,h} of the video, or null
+    this.prevGray = null; this.prevBalls = [];
+    this.table = null; this.clothHue = null; this.clothLockFrames = 0;
+    this.camMotionEma = 0;
+    if (this.running) this.setState("SEARCHING");
+    pushFeed("TABLE 1", true, roi ? "TABLE_AREA_SET — analysis restricted to selection" : "TABLE_AREA_CLEARED — analyzing full frame", "gold");
+  },
+
   analyze(v, now) {
-    const aw = cfg.res, ah = Math.max(2, Math.round(aw * v.videoHeight / v.videoWidth));
+    const roi = this.roi;
+    const srcW = roi ? roi.w * v.videoWidth : v.videoWidth;
+    const srcH = roi ? roi.h * v.videoHeight : v.videoHeight;
+    const aw = cfg.res, ah = Math.max(2, Math.round(aw * srcH / srcW));
     if (this.an.width !== aw || this.an.height !== ah) {
       this.an.width = aw; this.an.height = ah;
       this.anCtx = this.an.getContext("2d", { willReadFrequently: true });
       this.prevGray = null;
     }
-    this.anCtx.drawImage(v, 0, 0, aw, ah);
+    if (roi) this.anCtx.drawImage(v, roi.x * v.videoWidth, roi.y * v.videoHeight, srcW, srcH, 0, 0, aw, ah);
+    else this.anCtx.drawImage(v, 0, 0, aw, ah);
     const img = this.anCtx.getImageData(0, 0, aw, ah);
     const d = img.data, n = aw * ah;
 
@@ -1282,7 +1307,9 @@ function clearOverlay() {
 function drawOverlay(vs) {
   const c = els.cvOverlay, v = els.cvVideo;
   const dw = c.clientWidth, dh = c.clientHeight;
-  if (c.width !== dw * devicePixelRatio) { c.width = dw * devicePixelRatio; c.height = dh * devicePixelRatio; }
+  if (c.width !== dw * devicePixelRatio || c.height !== dh * devicePixelRatio) {
+    c.width = dw * devicePixelRatio; c.height = dh * devicePixelRatio;
+  }
   const ctx = c.getContext("2d");
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   ctx.clearRect(0, 0, dw, dh);
@@ -1290,10 +1317,27 @@ function drawOverlay(vs) {
   const L = cfg.overlays;
   const numFont = getComputedStyle(document.body).getPropertyValue("--font-num");
   // object-fit: contain mapping
-  const vAR = v.videoWidth / v.videoHeight, dAR = dw / dh;
-  let ox = 0, oy = 0, sw = dw, sh = dh;
-  if (vAR > dAR) { sh = dw / vAR; oy = (dh - sh) / 2; } else { sw = dh * vAR; ox = (dw - sw) / 2; }
-  const sx = sw / vs.an.width, sy = sh / vs.an.height;
+  const fit = containFit(v, dw, dh);
+  const { ox: fx, oy: fy, sw, sh } = fit;
+  // analysis coords live inside the ROI crop — remap them to the ROI's
+  // on-screen rectangle (full frame when no ROI is set)
+  const roi = vs.roi || { x: 0, y: 0, w: 1, h: 1 };
+  const ox = fx + roi.x * sw, oy = fy + roi.y * sh;
+  const sx = (sw * roi.w) / vs.an.width, sy = (sh * roi.h) / vs.an.height;
+  if (vs.roi) {
+    ctx.strokeStyle = "rgba(245,166,35,0.7)"; ctx.lineWidth = 1.5; ctx.setLineDash([8, 5]);
+    ctx.strokeRect(ox, oy, sw * roi.w, sh * roi.h);
+    ctx.setLineDash([]);
+  }
+  if (roiSelect.cur) {
+    const r = roiSelect.cur;
+    ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#f5a623";
+    ctx.font = "800 10px " + getComputedStyle(document.body).getPropertyValue("--font-num");
+    ctx.fillText("TABLE AREA", r.x + 4, r.y + 14);
+  }
 
   function label(x, y, text, color) {
     ctx.font = "800 9px " + numFont;
@@ -1336,7 +1380,7 @@ function drawOverlay(vs) {
       label(bx, by - 3, "ARM/CUE · IN TABLE", "#f5a623");
     }
     for (const p of vs.persons) {
-      const px = ox + p.x * sw, py = oy + p.y * sh;
+      const px = fx + p.x * sw, py = fy + p.y * sh;
       ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2;
       ctx.strokeRect(px, py, p.w * sw, p.h * sh);
       const st = L.motion ? (p.moving ? " · MOVING" : " · STILL") : "";
@@ -1352,6 +1396,83 @@ function drawOverlay(vs) {
     const clock = vs.state === "ADDRESSING" ? " · " + Math.ceil(vs.clockRemaining(performance.now())) + "s" : "";
     ctx.fillText(unstable ? "CAMERA MOVING — HOLD" : vs.state + clock, 14, 21);
   }
+}
+
+/* ---------------- table area (ROI) selection ---------------- */
+function containFit(v, dw, dh) {
+  const vAR = v.videoWidth / v.videoHeight, dAR = dw / dh;
+  let ox = 0, oy = 0, sw = dw, sh = dh;
+  if (vAR > dAR) { sh = dw / vAR; oy = (dh - sh) / 2; } else { sw = dh * vAR; ox = (dw - sw) / 2; }
+  return { ox, oy, sw, sh };
+}
+const roiSelect = { picking: false, sx: 0, sy: 0, cur: null };
+const roiBtn = document.getElementById("btn-roi");
+function canvasPos(ev) {
+  const r = els.cvOverlay.getBoundingClientRect();
+  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+roiBtn.addEventListener("click", () => {
+  if (vision.roi) {                        // clear
+    vision.setRoi(null);
+    roiBtn.textContent = "SET TABLE AREA";
+    roiBtn.classList.remove("active");
+    return;
+  }
+  roiSelect.picking = !roiSelect.picking;
+  els.cvOverlay.classList.toggle("picking", roiSelect.picking);
+  roiBtn.classList.toggle("active", roiSelect.picking);
+  roiBtn.textContent = roiSelect.picking ? "DRAG ON VIDEO…" : "SET TABLE AREA";
+});
+els.cvOverlay.addEventListener("pointerdown", (ev) => {
+  if (!roiSelect.picking) return;
+  ev.preventDefault();
+  els.cvOverlay.setPointerCapture(ev.pointerId);
+  const p = canvasPos(ev);
+  roiSelect.sx = p.x; roiSelect.sy = p.y;
+  roiSelect.cur = { x: p.x, y: p.y, w: 0, h: 0 };
+});
+els.cvOverlay.addEventListener("pointermove", (ev) => {
+  if (!roiSelect.picking || !roiSelect.cur) return;
+  const p = canvasPos(ev);
+  roiSelect.cur = {
+    x: Math.min(roiSelect.sx, p.x), y: Math.min(roiSelect.sy, p.y),
+    w: Math.abs(p.x - roiSelect.sx), h: Math.abs(p.y - roiSelect.sy),
+  };
+});
+els.cvOverlay.addEventListener("pointerup", () => {
+  if (!roiSelect.picking || !roiSelect.cur) return;
+  const r = roiSelect.cur;
+  roiSelect.picking = false; roiSelect.cur = null;
+  els.cvOverlay.classList.remove("picking");
+  roiBtn.classList.remove("active");
+  const v = els.cvVideo, c = els.cvOverlay;
+  const fit = containFit(v, c.clientWidth, c.clientHeight);
+  const nx = (r.x - fit.ox) / fit.sw, ny = (r.y - fit.oy) / fit.sh;
+  const nw = r.w / fit.sw, nh = r.h / fit.sh;
+  if (nw < 0.05 || nh < 0.05) { roiBtn.textContent = "SET TABLE AREA"; return; }  // too small = accidental tap
+  vision.setRoi({
+    x: Math.max(0, Math.min(1, nx)), y: Math.max(0, Math.min(1, ny)),
+    w: Math.min(1 - Math.max(0, nx), nw), h: Math.min(1 - Math.max(0, ny), nh),
+  });
+  roiBtn.textContent = "CLEAR AREA";
+});
+
+/* ---------------- camera zoom ---------------- */
+function setupZoom() {
+  const row = document.getElementById("zoom-row");
+  const slider = document.getElementById("cfg-zoom");
+  const track = cameraStream && cameraStream.getVideoTracks()[0];
+  const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+  if (!caps.zoom) { row.hidden = true; row.dataset.avail = "0"; return; }
+  row.hidden = false; row.dataset.avail = "1";
+  slider.min = caps.zoom.min; slider.max = caps.zoom.max;
+  slider.step = caps.zoom.step || 0.1;
+  slider.value = (track.getSettings && track.getSettings().zoom) || caps.zoom.min;
+  slider.oninput = () => {
+    track.applyConstraints({ advanced: [{ zoom: Number(slider.value) }] }).catch(() => {});
+    document.getElementById("zoom-val").textContent = Number(slider.value).toFixed(1) + "×";
+  };
+  document.getElementById("zoom-val").textContent = Number(slider.value).toFixed(1) + "×";
 }
 
 /* ---------------- fullscreen ---------------- */
