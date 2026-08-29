@@ -337,7 +337,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 17</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 18 · ENGINE:pool-watcher</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -526,1266 +526,1742 @@
 </div>
 
 <script>
-"use strict";
-/* ============================================================
-   Pool Watcher PW-01 v3 — live vision MVP
-   Table 1 sources:
-   - CAMERA / VIDEO FILE: real-time vision engine on readable pixels
-     (classical CV + optional in-browser person model)
-   - YOUTUBE: embed + time-keyed annotation track (pixels are sealed
-     cross-origin, so live CV is impossible there by browser design)
-   Tables 2–6: simulator.
-   ============================================================ */
+(() => {
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-const RULES = { standardShot: 30, afterBreak: 60, extension: 30 };
-
-const LIVE_TRACK = {
-  videoId: "N_oxfCVIJtk",
-  players: ["Player 1", "Player 2"],
-  raceTo: 9,
-  events: []
-};
-
-/* ---------------- feed ---------------- */
-const feedEl = document.getElementById("feed");
-const feedCountEl = document.getElementById("feed-count");
-let feedTotal = 0;
-function fmtClockTime(d) {
-  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
-}
-function pushFeed(label, isLive, ev, cls) {
-  feedTotal++;
-  const item = document.createElement("div");
-  item.className = "feed-item" + (cls ? " " + cls : "");
-  item.innerHTML = '<div class="row1"><span class="tno' + (isLive ? " live" : "") + '"></span><span class="ts num"></span></div><span class="ev"></span>';
-  item.querySelector(".tno").textContent = label;
-  item.querySelector(".ts").textContent = fmtClockTime(new Date());
-  item.querySelector(".ev").textContent = ev;
-  const prev = feedEl.querySelector(".latest");
-  if (prev) prev.classList.remove("latest");
-  item.classList.add("latest");
-  feedEl.prepend(item);
-  while (feedEl.children.length > 120) feedEl.lastChild.remove();
-  feedCountEl.textContent = feedTotal + " EVENTS";
-  if (feedEl.scrollTop < 30) feedEl.scrollTop = 0;
-}
-
-/* ============================================================
-   SIM TABLES 2–6
-   ============================================================ */
-const NAMES = [
-  ["S. Souquet", "F. Sanchez-Ruiz"], ["E. Kaci", "M. Konrad"],
-  ["K. Boyes", "W. Acosta"], ["A. Kazakis", "N. Ekonomopoulos"], ["Ko P.C.", "D. Appleton"],
-];
-const rand = (a, b) => a + Math.random() * (b - a);
-const pick = a => a[Math.floor(Math.random() * a.length)];
-let fouls = 0, extsUsed = 0;
-const shotTimes = [];
-
-class Table {
-  constructor(i) {
-    this.no = i + 2;
-    this.players = NAMES[i % NAMES.length].map(n => ({ name: n, score: 0, ext: true }));
-    this.raceTo = pick([9, 10, 11]);
-    this.turn = Math.round(Math.random());
-    this.breaker = this.turn;
-    this.phase = "RACKING";
-    this.nextIsBreak = true;
-    this.afterBreak = false;
-    this.clock = RULES.standardShot;
-    this.limit = RULES.standardShot;
-    this.wait = rand(2, 5);
-    this.lastEvent = "RACK_SET";
-  }
-  emit(ev, cls) { pushFeed("TABLE " + this.no, false, ev, cls); this.lastEvent = ev; }
-  tick(dt) {
-    if (this.phase === "MATCH_OVER") return;
-    if (this.phase === "ADDRESSING") {
-      this.clock -= dt;
-      if (this.clock <= 0) {
-        this.clock = 0; this.phase = "EXPIRED"; fouls++;
-        this.emit("SHOT_CLOCK_FOUL — ball in hand " + this.players[1 - this.turn].name, "foul");
-        this.wait = rand(4, 7);
+  // packages/core/src/watcher.ts
+  var WNT_9BALL = {
+    name: "wnt-9ball",
+    shotSeconds: 30,
+    afterBreakSeconds: 60,
+    extensionSeconds: 30,
+    extensionsPerRack: 1,
+    raceTo: 9,
+    alternateBreak: true,
+    winnerBreaks: false
+  };
+  var DEFAULT_TUNING = {
+    movingThreshold: 28e-4,
+    restThreshold: 28e-4 * 0.4,
+    restHoldMs: 700,
+    addressHoldMs: 1200,
+    expiredHoldMs: 4e3
+  };
+  var Watcher = class {
+    constructor(rules = WNT_9BALL, tuning, playerNames = ["Player 1", "Player 2"]) {
+      __publicField(this, "rules");
+      __publicField(this, "tuning");
+      __publicField(this, "listeners", []);
+      __publicField(this, "st", "SEARCHING");
+      __publicField(this, "unstable", false);
+      __publicField(this, "unstableAnnounced", false);
+      __publicField(this, "lastUnstableAt", 0);
+      __publicField(this, "restSince", 0);
+      __publicField(this, "addressSince", 0);
+      __publicField(this, "clockStart", 0);
+      __publicField(this, "clockLimitS", 0);
+      __publicField(this, "extUsedThisShot", false);
+      __publicField(this, "expiredAt", 0);
+      __publicField(this, "lastObs", null);
+      __publicField(this, "players");
+      __publicField(this, "_turn", 0);
+      __publicField(this, "_breaker", 0);
+      __publicField(this, "rackNumber", 1);
+      __publicField(this, "lastEventText", "—");
+      __publicField(this, "lastNow", 0);
+      this.rules = rules;
+      this.tuning = { ...DEFAULT_TUNING, ...tuning };
+      this.players = [
+        { name: playerNames[0], score: 0, extensionAvailable: true },
+        { name: playerNames[1], score: 0, extensionAvailable: true }
+      ];
+      this.clockLimitS = this.shotSeconds();
+    }
+    // ---- configuration -------------------------------------------------------
+    updateTuning(patch) {
+      this.tuning = { ...this.tuning, ...patch };
+    }
+    shotSeconds() {
+      return this.tuning.shotSeconds ?? this.rules.shotSeconds;
+    }
+    // ---- reads ---------------------------------------------------------------
+    get rawState() {
+      return this.st;
+    }
+    get isUnstable() {
+      return this.unstable;
+    }
+    get turn() {
+      return this._turn;
+    }
+    get clockLimit() {
+      return this.clockLimitS;
+    }
+    get extensionUsed() {
+      return this.extUsedThisShot;
+    }
+    clockRemaining(nowMs) {
+      if (this.st !== "ADDRESSING") return this.clockLimitS;
+      return Math.max(0, this.clockLimitS - (nowMs - this.clockStart) / 1e3);
+    }
+    get state() {
+      const phase = this.unstable ? "UNSTABLE" : this.st;
+      return {
+        phase,
+        clockRemaining: this.clockRemaining(this.lastNow),
+        clockLimit: this.clockLimitS,
+        players: [
+          { ...this.players[0], extensionAvailable: this._turn === 0 ? !this.extUsedThisShot && this.players[0].extensionAvailable : this.players[0].extensionAvailable },
+          { ...this.players[1] }
+        ],
+        turn: this._turn,
+        breaker: this._breaker,
+        rackNumber: this.rackNumber,
+        rules: this.rules
+      };
+    }
+    subscribe(listener) {
+      this.listeners.push(listener);
+      return () => {
+        this.listeners = this.listeners.filter((l) => l !== listener);
+      };
+    }
+    emit(type, origin, data, text) {
+      if (text) this.lastEventText = text;
+      const e = { t: this.lastNow, type, origin, data };
+      for (const l of this.listeners) l(e, this.state);
+    }
+    // ---- perception ingestion (the machine) ---------------------------------
+    ingest(obs, nowMs = Date.now()) {
+      this.lastNow = nowMs;
+      this.lastObs = obs;
+      const T = this.tuning;
+      if (obs.cameraShift.unstable) {
+        this.unstable = true;
+        if (this.st === "ADDRESSING" && this.lastUnstableAt) {
+          this.clockStart += nowMs - this.lastUnstableAt;
+        }
+        this.lastUnstableAt = nowMs;
+        this.restSince = 0;
+        if (!this.unstableAnnounced) {
+          this.unstableAnnounced = true;
+          this.emit("FEED_UNSTABLE", "watcher", void 0, "FEED_UNSTABLE — camera moving, clock held");
+        }
         return;
       }
-      this.wait -= dt;
-      if (this.wait <= 0) {
-        const p = this.players[this.turn];
-        if (this.clock < 8 && p.ext && Math.random() < 0.3) {
-          p.ext = false; extsUsed++;
-          this.clock += RULES.extension;
-          this.emit("EXTENSION — " + p.name + " (+30s)", "gold");
-          this.wait = rand(3, Math.min(14, this.clock - 2));
-          return;
-        }
-        this.takeShot();
+      if (this.unstableAnnounced) {
+        this.unstableAnnounced = false;
+        this.unstable = false;
+        this.lastUnstableAt = 0;
+        this.emit("FEED_STABLE", "watcher", void 0, "FEED_STABLE — camera settled, resuming");
       }
-      return;
+      this.unstable = false;
+      const ballRaw = obs.balls.some((b) => b.rawMoving);
+      const ballPersist = obs.balls.some((b) => b.moving);
+      const intrusion = obs.intrusions.length > 0;
+      const concrete = ballRaw || intrusion;
+      const e = obs.motionEnergy;
+      const moving = e > T.movingThreshold * 2.5 || e > T.movingThreshold && concrete;
+      const still = e < T.restThreshold;
+      const quiet = still || !ballPersist && e < T.movingThreshold * 1.5;
+      if (quiet) {
+        if (!this.restSince) this.restSince = nowMs;
+      } else this.restSince = 0;
+      const atRest = !!this.restSince && nowMs - this.restSince > T.restHoldMs;
+      if (!obs.table) {
+        if (this.st !== "SEARCHING") {
+          this.st = "SEARCHING";
+          this.emit("FEED_LOST", "watcher", void 0, "FEED_LOST — table lost from view");
+          this.lastEventText = "SEARCHING FOR TABLE";
+        }
+        return;
+      }
+      switch (this.st) {
+        case "SEARCHING":
+          this.st = "READY";
+          this.emit("TABLE_ACQUIRED", "watcher", { confidence: obs.tableConfidence }, "INIT — table locked, awaiting play");
+          break;
+        case "READY":
+          if (intrusion && atRest) {
+            if (!this.addressSince) this.addressSince = nowMs;
+            if (nowMs - this.addressSince > T.addressHoldMs) {
+              this.st = "ADDRESSING";
+              this.clockStart = nowMs;
+              this.clockLimitS = this.shotSeconds();
+              this.extUsedThisShot = false;
+              this.emit(
+                "PLAYER_ADDRESSING",
+                "watcher",
+                { limit: this.clockLimitS },
+                `PLAYER_ADDRESSING — clock ${this.clockLimitS}s`
+              );
+            }
+          } else {
+            this.addressSince = 0;
+            if (moving) {
+              this.st = "ROLLING";
+              this.lastEventText = "BALLS_MOVING";
+            }
+          }
+          break;
+        case "ADDRESSING": {
+          const elapsed = (nowMs - this.clockStart) / 1e3;
+          if (moving && e > T.movingThreshold * 1.6) {
+            this.st = "ROLLING";
+            this.emit(
+              "SHOT_TAKEN",
+              "watcher",
+              { elapsed },
+              `SHOT_TAKEN — ${elapsed.toFixed(1)}s used`
+            );
+          }
+          break;
+        }
+        case "ROLLING":
+          if (atRest) {
+            this.st = "READY";
+            this.addressSince = 0;
+            this.emit(
+              "BALLS_AT_REST",
+              "watcher",
+              void 0,
+              "BALLS_AT_REST — clock held, awaiting address"
+            );
+          }
+          break;
+        case "EXPIRED":
+          break;
+      }
     }
-    this.wait -= dt;
-    if (this.wait > 0) return;
-    if (this.phase === "RACKING" || this.phase === "GRACE") this.startAddress();
-    else if (this.phase === "EXPIRED") { this.turn = 1 - this.turn; this.phase = "GRACE"; this.wait = rand(2, 5); }
-  }
-  startAddress() {
-    const isBreak = this.nextIsBreak;
-    this.limit = this.afterBreak ? RULES.afterBreak : RULES.standardShot;
-    this.clock = this.limit;
-    this.phase = "ADDRESSING";
-    this.shotStart = this.limit;
-    this.emit("PLAYER_ADDRESSING — clock " + this.limit + "s" + (isBreak ? " (break)" : this.afterBreak ? " (after break)" : ""));
-    const r = Math.random();
-    if (r < 0.05) this.wait = this.limit + 5;
-    else if (r < 0.25) this.wait = rand(this.limit * 0.7, this.limit - 1);
-    else this.wait = rand(4, this.limit * 0.6);
-  }
-  takeShot() {
-    shotTimes.push(this.shotStart - this.clock);
-    const wasBreak = this.nextIsBreak;
-    this.nextIsBreak = false;
-    this.afterBreak = wasBreak;
-    this.emit(wasBreak ? "BREAK_DETECTED" : "SHOT_TAKEN", wasBreak ? "gold" : undefined);
-    this.phase = "GRACE";
-    this.wait = rand(3, 8);
-    if (!wasBreak) {
-      if (Math.random() < 0.10) this.gameOver();
-      else if (Math.random() < 0.35) { this.turn = 1 - this.turn; this.wait = rand(4, 9); }
-    } else if (Math.random() < 0.2) this.turn = 1 - this.turn;
-  }
-  gameOver() {
-    const w = this.players[this.turn];
-    w.score++;
-    this.emit("GAME_OVER — rack to " + w.name + " (" + this.players[0].score + "–" + this.players[1].score + ")", "gold");
-    if (w.score >= this.raceTo) {
-      this.phase = "MATCH_OVER";
-      this.emit("MATCH_OVER — " + w.name + " wins " + this.players[0].score + "–" + this.players[1].score, "gold");
-      setTimeout(() => {
-        const i = this.no - 2;
-        tables[i] = new Table(i);
-        tables[i].emit("NEW_MATCH — " + tables[i].players[0].name + " vs " + tables[i].players[1].name);
-        buildSimCards();
-      }, 12000 / sim.speed);
-      return;
+    // ---- clock ---------------------------------------------------------------
+    tick(nowMs) {
+      this.lastNow = nowMs;
+      if (this.unstable) return;
+      if (this.st === "ADDRESSING") {
+        const elapsed = (nowMs - this.clockStart) / 1e3;
+        if (elapsed >= this.clockLimitS) {
+          this.st = "EXPIRED";
+          this.expiredAt = nowMs;
+          this.emit("CLOCK_EXPIRED", "watcher", void 0, "SHOT_CLOCK_FOUL — clock expired");
+        }
+      } else if (this.st === "EXPIRED" && this.expiredAt && nowMs - this.expiredAt > this.tuning.expiredHoldMs) {
+        this.st = "READY";
+        this.addressSince = 0;
+        this.expiredAt = 0;
+      }
     }
-    this.players.forEach(p => p.ext = true);
-    this.breaker = 1 - this.breaker;
-    this.turn = this.breaker;
-    this.nextIsBreak = true;
-    this.afterBreak = false;
-    this.phase = "RACKING";
-    this.wait = rand(8, 14);
-  }
-}
-
-/* ============================================================
-   SOURCE MODES
-   ============================================================ */
-const MODE = { current: "camera" };
-const els = {
-  ytPlayer: document.getElementById("yt-player"),
-  cvVideo: document.getElementById("cv-video"),
-  cvOverlay: document.getElementById("cv-overlay"),
-  cameraControls: document.getElementById("camera-controls"),
-  fileControls: document.getElementById("file-controls"),
-  ytControls: document.getElementById("yt-controls"),
-  ytAnnot: document.getElementById("yt-annot"),
-  visionPanel: document.getElementById("vision-panel"),
-  fallback: document.getElementById("video-fallback"),
-};
-function setMode(mode) {
-  MODE.current = mode;
-  document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
-  const yt = mode === "youtube";
-  els.ytPlayer.hidden = !yt;
-  els.cvVideo.hidden = yt;
-  els.cvOverlay.hidden = yt;
-  els.cameraControls.hidden = mode !== "camera";
-  document.getElementById("zoom-row").hidden = mode !== "camera" || document.getElementById("zoom-row").dataset.avail !== "1";
-  els.fileControls.hidden = mode !== "file";
-  els.ytControls.hidden = !yt;
-  els.ytAnnot.hidden = !yt;
-  document.getElementById("yt-explainer").hidden = !yt;
-  els.visionPanel.classList.toggle("vp-idle", yt);
-  document.getElementById("vp-yt-note").hidden = !yt;
-  if (yt) document.getElementById("vp-state").textContent = "IDLE — EMBED SEALED";
-  document.getElementById("annot-help").classList.remove("show");
-  hideFallback();
-  if (yt) {
-    vision.stop();
-    stopCamera();
-    if (!ytLoadStarted) loadYT();
-    setFeed(ytReady ? "PAUSED" : "IDLE");
-  } else {
-    if (ytReady && ytPlayer.pauseVideo) try { ytPlayer.pauseVideo(); } catch (e) {}
-    if (mode === "file") {
-      stopCamera();                       // srcObject would override a file src
-      if (els.cvVideo.src) { els.cvVideo.controls = true; els.cvVideo.play().catch(() => {}); vision.start(); }
-      else { vision.stop(); setFeed("IDLE"); showFallback("NO SOURCE", "Choose a video file — a clip you recorded works great."); }
-    } else if (mode === "camera") {
-      els.cvVideo.controls = false;
-      if (cameraStream) { vision.start(); }
-      else { vision.stop(); els.cvVideo.pause(); setFeed("IDLE"); showFallback("NO SOURCE", "Press START CAMERA and point it at a pool table."); }
+    // ---- human events (tablet / admin) --------------------------------------
+    dispatch(event) {
+      const now = this.lastNow || Date.now();
+      switch (event.type) {
+        case "TURN_SET": {
+          this._turn = 1 - this._turn;
+          this.emit(
+            "TURN_SET",
+            event.origin ?? "admin",
+            { turn: this._turn },
+            `TURN_CHANGE — ${this.players[this._turn].name} at table (manual)`
+          );
+          break;
+        }
+        case "EXTENSION_USED": {
+          if (this.st === "ADDRESSING" && !this.extUsedThisShot) {
+            this.extUsedThisShot = true;
+            this.clockLimitS += this.rules.extensionSeconds;
+            this.emit(
+              "EXTENSION_USED",
+              event.origin ?? "admin",
+              { limit: this.clockLimitS },
+              `EXTENSION — +${this.rules.extensionSeconds}s (manual)`
+            );
+          }
+          break;
+        }
+        case "CLOCK_OVERRIDE": {
+          this.addressSince = 0;
+          if (this.st === "ADDRESSING" || this.st === "EXPIRED") this.st = "READY";
+          this.emit("CLOCK_OVERRIDE", event.origin ?? "admin", void 0, "CLOCK_RESET — manual");
+          break;
+        }
+        case "GAME_WON": {
+          const winner = event.data?.player ?? this._turn;
+          this.players[winner].score++;
+          this.rackNumber++;
+          this.players.forEach((p) => p.extensionAvailable = true);
+          if (this.rules.alternateBreak) this._breaker = 1 - this._breaker;
+          else if (this.rules.winnerBreaks) this._breaker = winner;
+          this._turn = this._breaker;
+          this.emit(
+            "GAME_WON",
+            event.origin ?? "tablet",
+            { winner, score: [this.players[0].score, this.players[1].score] },
+            `GAME_OVER — rack to ${this.players[winner].name}`
+          );
+          break;
+        }
+        default:
+          this.emit(event.type, event.origin ?? "admin", event.data);
+      }
     }
+  };
+
+  // packages/engine-classical/src/index.ts
+  var DEFAULT_CONFIG = {
+    res: 240,
+    diffThreshold: 24,
+    ballMotionRatio: 0.18,
+    minSolidity: 0.5,
+    maxSolidity: 0.95,
+    minClothEnclosure: 0.5
+  };
+  function makeCanvas(w, h) {
+    if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(w, h);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    return c;
   }
-  pushFeed("TABLE 1", true, "SOURCE_MODE — " + mode.toUpperCase(), "gold");
-}
-document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
-
-function showFallback(title, detail) {
-  if (title) document.getElementById("fallback-title").textContent = title;
-  if (detail) document.getElementById("fallback-detail").textContent = detail;
-  els.fallback.hidden = false;
-}
-function hideFallback() { els.fallback.hidden = true; }
-function setFeed(state) {
-  const el = document.getElementById("feed-state");
-  el.textContent = "FEED " + state;
-  el.className = "feed-state " + (state === "PLAYING" || state === "LIVE" ? "playing" : state === "LOST" ? "lost" : "paused");
-  live.feed = state;
-}
-
-/* ---------------- camera ---------------- */
-let cameraStream = null, cameraFacing = "environment";
-async function startCamera() {
-  try {
-    stopCamera();
-    try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: cameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-    } catch (e1) {
-      // some devices reject shaped constraints — fall back to any camera
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  var ClassicalEngine = class {
+    constructor(cfg2) {
+      __publicField(this, "name", "classical");
+      __publicField(this, "cfg");
+      __publicField(this, "roi", null);
+      __publicField(this, "canvas", makeCanvas(2, 2));
+      __publicField(this, "ctx", null);
+      __publicField(this, "prevGray", null);
+      __publicField(this, "prevW", 0);
+      __publicField(this, "clothHue", null);
+      __publicField(this, "clothLockFrames", 0);
+      __publicField(this, "camMotionEma", 0);
+      __publicField(this, "prevBalls", []);
+      /** Table bbox in analysis px (internal); exposed normalized in Observations. */
+      __publicField(this, "tablePx", null);
+      this.cfg = { ...DEFAULT_CONFIG, ...cfg2 };
     }
-    els.cvVideo.controls = false;
-    els.cvVideo.srcObject = cameraStream;
-    // Do NOT await play(): after the permission prompt the tap's user
-    // activation can be spent, and some mobile browsers then reject or
-    // hang the play() promise even though the stream is live. The video
-    // is muted+autoplay, so playback starts on its own; we also retry
-    // on loadedmetadata and on the next tap (listeners below).
-    els.cvVideo.play().catch(() => {});
-    hideFallback();
-    setFeed("LIVE");
-    document.getElementById("btn-camera").textContent = "STOP CAMERA";
-    document.getElementById("btn-flip").disabled = false;
-    pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — camera live (" + cameraFacing + ")", "gold");
-    setupZoom();
-    vision.start();
-  } catch (err) {
-    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
-    setFeed("LOST");
-    showFallback("CAMERA UNAVAILABLE", (err && err.name) === "NotAllowedError"
-      ? "Camera permission was denied. Allow camera access for this site and try again."
-      : "Could not open a camera: " + (err && err.message ? err.message : err));
-    pushFeed("TABLE 1", true, "FEED_LOST — camera unavailable", "foul");
-  }
-}
-// resilience: kick playback whenever the stream is ready or the user taps
-els.cvVideo.addEventListener("loadedmetadata", () => {
-  if (MODE.current !== "youtube") els.cvVideo.play().catch(() => {});
-});
-document.addEventListener("pointerdown", () => {
-  if (MODE.current !== "youtube" && els.cvVideo.paused && (els.cvVideo.srcObject || els.cvVideo.src)) {
-    els.cvVideo.play().catch(() => {});
-  }
-});
-function stopCamera() {
-  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
-  const zr = document.getElementById("zoom-row");
-  zr.hidden = true; zr.dataset.avail = "0";
-  if (els.cvVideo.srcObject) els.cvVideo.srcObject = null;
-  document.getElementById("btn-camera").textContent = "START CAMERA";
-  document.getElementById("btn-flip").disabled = true;
-}
-document.getElementById("btn-camera").addEventListener("click", () => {
-  if (cameraStream) { vision.stop(); stopCamera(); setFeed("IDLE"); showFallback("NO SOURCE", "Press START CAMERA and point it at a pool table."); }
-  else startCamera();
-});
-document.getElementById("btn-flip").addEventListener("click", () => {
-  cameraFacing = cameraFacing === "environment" ? "user" : "environment";
-  startCamera();
-});
-
-/* ---------------- video file ---------------- */
-document.getElementById("btn-file").addEventListener("click", () => document.getElementById("file-input").click());
-document.getElementById("file-input").addEventListener("change", (e) => {
-  const f = e.target.files && e.target.files[0];
-  if (!f) return;
-  els.cvVideo.srcObject = null;
-  els.cvVideo.src = URL.createObjectURL(f);
-  els.cvVideo.controls = true;
-  els.cvVideo.loop = true;
-  els.cvVideo.play().catch(() => {});
-  document.getElementById("file-name").textContent = f.name;
-  hideFallback();
-  setFeed("PLAYING");
-  pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — file loaded: " + f.name, "gold");
-  vision.start();
-});
-
-/* ============================================================
-   VISION ENGINE — classical CV on readable pixels
-   Per tick: downscale frame → cloth-color mask → table bbox →
-   non-cloth blobs inside table (balls vs edge intrusion) →
-   frame-difference motion energy → state machine → clock.
-   No neural net required; optional person model is additive.
-   ============================================================ */
-const cfg = {
-  fps: 12, idleFps: 3, adaptive: true, res: 240,
-  sens: 5,               // 1..10 → motion threshold
-  restHoldMs: 700, addressHoldMs: 1200, clockSecs: 30,
-  personFps: 0,
-  overlays: { table: true, balls: true, motion: true, players: true, state: true },
-};
-/* A lone rolling ball changes only ~0.2–0.7% of table pixels, so thresholds
-   run very low; the sensitivity slider spans camera-noise floor to broadcast-safe. */
-function movingThresh() { return 0.0075 * Math.pow(0.82, cfg.sens); }  // sens 1→0.0062 … 10→0.0010
-function restThresh() { return movingThresh() * 0.4; }
-
-const vision = {
-  running: false, lastTick: 0, lastFrameAt: 0,
-  an: document.createElement("canvas"), anCtx: null,
-  prevGray: null, prevW: 0,
-  clothHue: null, clothLockFrames: 0,
-  table: null,           // {x,y,w,h} in analysis px
-  balls: [], intrusion: false, intrusions: [],
-  motionEma: 0, restSince: 0, addressSince: 0, idleSince: 0,
-  camShift: { dx: 0, dy: 0, unstable: false }, alignOff: 0, lastUnstableAt: 0, unstableAnnounced: false, camMotionEma: 0,
-  roi: null,
-  state: "OFF",          // OFF|SEARCHING|READY|ADDRESSING|ROLLING|EXPIRED
-  clockStart: 0, clockLimit: 30, extUsed: false,
-  lastEvent: "—", measuredFps: 0, frameCost: 0, fpsWindow: [],
-  persons: [], personModel: null, personBusy: false, lastPersonAt: 0,
-
-  start() {
-    if (this.running) return;
-    this.running = true;
-    this.setState("SEARCHING");
-    this.clothHue = null; this.table = null; this.prevGray = null;
-    pushFeed("TABLE 1", true, "VISION_ENGINE — started");
-  },
-  stop() {
-    if (!this.running) return;
-    this.running = false;
-    this.setState("OFF");
-    clearOverlay();
-  },
-  setState(s) {
-    if (this.state === s) return;
-    this.state = s;
-    document.getElementById("vp-state").textContent = s;
-  },
-
-  tick(now) {
-    if (!this.running) return;
-    const v = els.cvVideo;
-    if (!v.videoWidth || v.paused || v.ended) {
-      if (MODE.current === "file" && v.paused && v.src) setFeed("PAUSED");
-      return;
+    setRoi(roi) {
+      this.roi = roi;
+      this.resetTransient();
     }
-    if (MODE.current === "file") setFeed("PLAYING");
-    // adaptive rate: idle when nothing has happened for 3s in READY
-    const idle = cfg.adaptive && this.state === "READY" && (now - this.idleSince > 3000);
-    const targetFps = idle ? Math.min(cfg.idleFps, cfg.fps) : cfg.fps;
-    document.getElementById("m-adapt").textContent = idle ? "IDLE " + targetFps : "FULL " + cfg.fps;
-    if (now - this.lastTick < 1000 / targetFps) return;
-    this.fpsWindow.push(now);
-    while (this.fpsWindow.length && now - this.fpsWindow[0] > 2000) this.fpsWindow.shift();
-    this.measuredFps = this.fpsWindow.length / 2;
-    this.lastTick = now;
-
-    const t0 = performance.now();
-    this.analyze(v, now);
-    this.frameCost = performance.now() - t0;
-    this.machine(now);
-    drawOverlay(this);
-    this.maybePersons(v, now);
-    this.meters();
-  },
-
-  setRoi(roi) {
-    this.roi = roi;                       // normalized {x,y,w,h} of the video, or null
-    this.prevGray = null; this.prevBalls = [];
-    this.table = null; this.clothHue = null; this.clothLockFrames = 0;
-    this.camMotionEma = 0;
-    if (this.running) this.setState("SEARCHING");
-    pushFeed("TABLE 1", true, roi ? "TABLE_AREA_SET — analysis restricted to selection" : "TABLE_AREA_CLEARED — analyzing full frame", "gold");
-  },
-
-  analyze(v, now) {
-    const roi = this.roi;
-    const srcW = roi ? roi.w * v.videoWidth : v.videoWidth;
-    const srcH = roi ? roi.h * v.videoHeight : v.videoHeight;
-    const aw = cfg.res, ah = Math.max(2, Math.round(aw * srcH / srcW));
-    if (this.an.width !== aw || this.an.height !== ah) {
-      this.an.width = aw; this.an.height = ah;
-      this.anCtx = this.an.getContext("2d", { willReadFrequently: true });
+    getRoi() {
+      return this.roi;
+    }
+    reset() {
+      this.roi = null;
+      this.resetTransient();
+    }
+    /** Clear detection state without touching the ROI (res change, source change). */
+    resetDetection() {
+      this.resetTransient();
+    }
+    resetTransient() {
       this.prevGray = null;
+      this.prevBalls = [];
+      this.tablePx = null;
+      this.clothHue = null;
+      this.clothLockFrames = 0;
+      this.camMotionEma = 0;
     }
-    if (roi) this.anCtx.drawImage(v, roi.x * v.videoWidth, roi.y * v.videoHeight, srcW, srcH, 0, 0, aw, ah);
-    else this.anCtx.drawImage(v, 0, 0, aw, ah);
-    const img = this.anCtx.getImageData(0, 0, aw, ah);
-    const d = img.data, n = aw * ah;
-
-    // --- pass 1: hue histogram (center region) for cloth auto-calibration ---
-    const hueBins = new Float32Array(36);
-    const hsv = new Float32Array(n * 2);      // [hue, satOk] packed
-    const gray = new Uint8Array(n);
-    for (let i = 0; i < n; i++) {
-      const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
-      gray[i] = (r * 3 + g * 4 + b) >> 3;
-      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
-      let h = 0;
-      if (c > 0) {
-        if (mx === r) h = ((g - b) / c) % 6;
-        else if (mx === g) h = (b - r) / c + 2;
-        else h = (r - g) / c + 4;
-        h = (h * 60 + 360) % 360;
-      }
-      const sat = mx ? c / mx : 0;
-      hsv[i * 2] = h;
-      hsv[i * 2 + 1] = (sat > 0.2 && mx > 30) ? 1 : 0;
-      if (hsv[i * 2 + 1]) {
-        const x = i % aw, y = (i / aw) | 0;
-        if (x > aw * 0.1 && x < aw * 0.9 && y > ah * 0.1 && y < ah * 0.9) hueBins[(h / 10) | 0]++;
-      }
+    /** Map analysis-space px to full-source normalized coords. */
+    toSource(px, py, aw, ah) {
+      const roi = this.roi ?? { x: 0, y: 0, w: 1, h: 1 };
+      return { x: roi.x + px / aw * roi.w, y: roi.y + py / ah * roi.h };
     }
-    let best = 0;
-    for (let b = 1; b < 36; b++) if (hueBins[b] > hueBins[best]) best = b;
-    const domFrac = (hueBins[(best + 35) % 36] + hueBins[best] + hueBins[(best + 1) % 36]) / n;
-    const domHue = best * 10 + 5;
-    if (this.clothHue === null || Math.abs(((domHue - this.clothHue + 540) % 360) - 180) > 30) {
-      if (domFrac > 0.12) { this.clothHue = domHue; this.clothLockFrames = 0; }
-    } else {
-      this.clothHue = this.clothHue * 0.9 + domHue * 0.1;
+    boxToSource(mnx, mny, mxx, mxy, aw, ah) {
+      const a = this.toSource(mnx, mny, aw, ah);
+      const b = this.toSource(mxx + 1, mxy + 1, aw, ah);
+      return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
     }
-
-    // --- pass 2: cloth mask + coarse grid for table bbox ---
-    const GW = 24, GH = 14;
-    const cellTotal = new Uint16Array(GW * GH), cellCloth = new Uint16Array(GW * GH);
-    const cloth = new Uint8Array(n);
-    if (this.clothHue !== null) {
-      for (let i = 0; i < n; i++) {
-        if (hsv[i * 2 + 1]) {
-          const dh = Math.abs(((hsv[i * 2] - this.clothHue + 540) % 360) - 180);
-          if (dh < 18) cloth[i] = 1;
-        }
-        const x = i % aw, y = (i / aw) | 0;
-        const ci = ((y * GH / ah) | 0) * GW + ((x * GW / aw) | 0);
-        cellTotal[ci]++;
-        if (cloth[i]) cellCloth[ci]++;
-      }
-    }
-    // largest connected cloth-cell region (BFS)
-    const isClothCell = new Uint8Array(GW * GH);
-    for (let ci = 0; ci < GW * GH; ci++) isClothCell[ci] = cellTotal[ci] && (cellCloth[ci] / cellTotal[ci] > 0.5) ? 1 : 0;
-    const seen = new Uint8Array(GW * GH);
-    let bestRegion = null;
-    for (let ci = 0; ci < GW * GH; ci++) {
-      if (!isClothCell[ci] || seen[ci]) continue;
-      const q = [ci]; seen[ci] = 1;
-      let minX = GW, maxX = 0, minY = GH, maxY = 0, count = 0;
-      while (q.length) {
-        const c = q.pop(); count++;
-        const cx = c % GW, cy = (c / GW) | 0;
-        if (cx < minX) minX = cx; if (cx > maxX) maxX = cx;
-        if (cy < minY) minY = cy; if (cy > maxY) maxY = cy;
-        [[cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]].forEach(([nx, ny]) => {
-          if (nx >= 0 && nx < GW && ny >= 0 && ny < GH) {
-            const nc = ny * GW + nx;
-            if (isClothCell[nc] && !seen[nc]) { seen[nc] = 1; q.push(nc); }
-          }
-        });
-      }
-      if (!bestRegion || count > bestRegion.count) bestRegion = { count, minX, maxX, minY, maxY };
-    }
-    const hadTable = !!this.table;
-    if (bestRegion && bestRegion.count >= 18) {
-      // shrink half a cell per side: the cell bbox overshoots the cloth,
-      // and overshoot strips otherwise read as permanent edge "intrusion"
-      const cw = aw / GW, ch = ah / GH;
-      this.table = {
-        x: bestRegion.minX * cw + cw / 2, y: bestRegion.minY * ch + ch / 2,
-        w: (bestRegion.maxX - bestRegion.minX + 1) * cw - cw,
-        h: (bestRegion.maxY - bestRegion.minY + 1) * ch - ch,
-        frac: bestRegion.count / (GW * GH),
+    observe(frame) {
+      const empty = {
+        t: frame.t,
+        table: null,
+        tableConfidence: 0,
+        balls: [],
+        intrusions: [],
+        persons: [],
+        cameraShift: { dx: 0, dy: 0, unstable: false },
+        motionEnergy: 0
       };
-      this.clothLockFrames++;
-    } else {
-      this.clothLockFrames = Math.max(0, this.clothLockFrames - 2);
-      if (this.clothLockFrames === 0) this.table = null;
-    }
-    if (!hadTable && this.table) pushFeed("TABLE 1", true, "TABLE_ACQUIRED — cloth lock " + Math.round(this.table.frac * 100) + "% of frame", "gold");
-    if (hadTable && !this.table) pushFeed("TABLE 1", true, "FEED_LOST — table lost from view", "foul");
-
-    // --- pass 3: camera-shake compensation + aligned motion energy ---
-    // Handheld cameras shift the WHOLE frame between ticks; naive frame
-    // differencing reads that as everything moving. Estimate the global
-    // (dx,dy) shift by minimizing summed absolute difference over the
-    // table region, then difference frames AFTER aligning by that shift:
-    // only motion beyond camera movement counts.
-    const prevG = (this.prevW === aw) ? this.prevGray : null;
-    let energy = 0;
-    this.camShift = { dx: 0, dy: 0, unstable: false };
-    if (this.table && prevG) {
-      const { x, y, w, h } = this.table;
-      const x0 = Math.max(4, x | 0), y0 = Math.max(4, y | 0);
-      const x1 = Math.min(aw - 4, (x + w) | 0), y1 = Math.min(ah - 4, (y + h) | 0);
-      const R = 3;                       // search ±3 analysis px
-      let bestDx = 0, bestDy = 0, bestSad = Infinity, zeroSad = 0;
-      for (let dy = -R; dy <= R; dy++) {
-        for (let dx = -R; dx <= R; dx++) {
-          let sad = 0;
-          for (let yy = y0; yy < y1; yy += 4) {
-            const row = yy * aw, prow = (yy + dy) * aw + dx;
-            for (let xx = x0; xx < x1; xx += 4) sad += Math.abs(gray[row + xx] - prevG[prow + xx]);
+      const img = frame.image;
+      const vw = frame.width ?? img?.videoWidth ?? img?.width;
+      const vh = frame.height ?? img?.videoHeight ?? img?.height;
+      if (!img || !vw || !vh) return empty;
+      const roi = this.roi;
+      const srcW = roi ? roi.w * vw : vw;
+      const srcH = roi ? roi.h * vh : vh;
+      const aw = this.cfg.res;
+      const ah = Math.max(2, Math.round(aw * srcH / srcW));
+      if (this.canvas.width !== aw || this.canvas.height !== ah) {
+        this.canvas.width = aw;
+        this.canvas.height = ah;
+        this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
+        this.prevGray = null;
+      }
+      if (!this.ctx) this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
+      if (roi) this.ctx.drawImage(img, roi.x * vw, roi.y * vh, srcW, srcH, 0, 0, aw, ah);
+      else this.ctx.drawImage(img, 0, 0, aw, ah);
+      const data = this.ctx.getImageData(0, 0, aw, ah).data;
+      const n = aw * ah;
+      const hueBins = new Float32Array(36);
+      const hsv = new Float32Array(n * 2);
+      const gray = new Uint8Array(n);
+      for (let i = 0; i < n; i++) {
+        const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+        gray[i] = r * 3 + g * 4 + b >> 3;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
+        let h = 0;
+        if (c > 0) {
+          if (mx === r) h = (g - b) / c % 6;
+          else if (mx === g) h = (b - r) / c + 2;
+          else h = (r - g) / c + 4;
+          h = (h * 60 + 360) % 360;
+        }
+        const sat = mx ? c / mx : 0;
+        hsv[i * 2] = h;
+        hsv[i * 2 + 1] = sat > 0.2 && mx > 30 ? 1 : 0;
+        if (hsv[i * 2 + 1]) {
+          const x = i % aw, y = i / aw | 0;
+          if (x > aw * 0.1 && x < aw * 0.9 && y > ah * 0.1 && y < ah * 0.9) hueBins[h / 10 | 0]++;
+        }
+      }
+      let best = 0;
+      for (let b = 1; b < 36; b++) if (hueBins[b] > hueBins[best]) best = b;
+      const domFrac = (hueBins[(best + 35) % 36] + hueBins[best] + hueBins[(best + 1) % 36]) / n;
+      const domHue = best * 10 + 5;
+      if (this.clothHue === null || Math.abs((domHue - this.clothHue + 540) % 360 - 180) > 30) {
+        if (domFrac > 0.12) {
+          this.clothHue = domHue;
+          this.clothLockFrames = 0;
+        }
+      } else {
+        this.clothHue = this.clothHue * 0.9 + domHue * 0.1;
+      }
+      const GW = 24, GH = 14;
+      const cellTotal = new Uint16Array(GW * GH), cellCloth = new Uint16Array(GW * GH);
+      const cloth = new Uint8Array(n);
+      if (this.clothHue !== null) {
+        for (let i = 0; i < n; i++) {
+          if (hsv[i * 2 + 1]) {
+            const dh = Math.abs((hsv[i * 2] - this.clothHue + 540) % 360 - 180);
+            if (dh < 18) cloth[i] = 1;
           }
-          if (dx === 0 && dy === 0) zeroSad = sad;
-          if (sad < bestSad) { bestSad = sad; bestDx = dx; bestDy = dy; }
+          const x = i % aw, y = i / aw | 0;
+          const ci = (y * GH / ah | 0) * GW + (x * GW / aw | 0);
+          cellTotal[ci]++;
+          if (cloth[i]) cellCloth[ci]++;
         }
       }
-      const atEdge = Math.abs(bestDx) === R || Math.abs(bestDy) === R;
-      const off = bestDy * aw + bestDx;
-      let changed = 0, total = 0;
-      for (let yy = y0; yy < y1; yy++) {
-        const row = yy * aw;
-        for (let xx = x0; xx < x1; xx++) {
-          const i = row + xx;
-          total++;
-          if (Math.abs(gray[i] - prevG[i + off]) > 24) changed++;
-        }
-      }
-      energy = total ? changed / total : 0;
-      // Unstable = the camera itself is moving hard. A single tick can look
-      // calm mid-shake (random jitter sometimes lands inside the search
-      // window), so smooth per-tick evidence — big shifts or a saturated
-      // search with heavy residual — into a sticky score. Real ball motion
-      // never saturates the search: the static table dominates the SAD.
-      const rawUnstable = atEdge && energy > 0.03;
-      const shiftMag = Math.max(Math.abs(bestDx), Math.abs(bestDy));
-      this.camMotionEma = this.camMotionEma * 0.7 + ((shiftMag >= 2 || rawUnstable) ? 0.3 : shiftMag >= 1 ? 0.12 : 0);
-      this.camShift = { dx: bestDx, dy: bestDy, unstable: rawUnstable || this.camMotionEma > 0.45 };
-      this.alignOff = off;
-    } else {
-      this.alignOff = 0;
-    }
-    this.motionEma = this.motionEma * 0.6 + energy * 0.4;
-
-    // --- pass 4: non-cloth blobs inside table (balls + intrusion) ---
-    this.balls = []; this.intrusion = false; this.intrusions = [];
-    if (this.table) {
-      const { x, y, w, h } = this.table;
-      const x0 = Math.max(0, x | 0), y0 = Math.max(0, y | 0);
-      const x1 = Math.min(aw, (x + w) | 0), y1 = Math.min(ah, (y + h) | 0);
-      const tableArea = (x1 - x0) * (y1 - y0);
-      const labels = new Int32Array(n).fill(-1);
-      const blobs = [];
-      for (let yy = y0; yy < y1; yy++) {
-        for (let xx = x0; xx < x1; xx++) {
-          const i = yy * aw + xx;
-          if (cloth[i] || labels[i] !== -1 || gray[i] < 14) continue;
-          // flood fill
-          const stack = [i]; labels[i] = blobs.length;
-          let area = 0, sx = 0, sy = 0, mnx = xx, mxx = xx, mny = yy, mxy = yy;
-          let sr = 0, sg = 0, sb = 0, edge = false;
-          while (stack.length) {
-            const p = stack.pop(); area++;
-            const px = p % aw, py = (p / aw) | 0;
-            sx += px; sy += py;
-            sr += d[p * 4]; sg += d[p * 4 + 1]; sb += d[p * 4 + 2];
-            if (px < mnx) mnx = px; if (px > mxx) mxx = px;
-            if (py < mny) mny = py; if (py > mxy) mxy = py;
-            if (px <= x0 + 1 || px >= x1 - 2 || py <= y0 + 1 || py >= y1 - 2) edge = true;
-            if (area > tableArea * 0.5) break;
-            [[px - 1, py], [px + 1, py], [px, py - 1], [px, py + 1]].forEach(([qx, qy]) => {
-              if (qx >= x0 && qx < x1 && qy >= y0 && qy < y1) {
-                const q = qy * aw + qx;
-                if (!cloth[q] && labels[q] === -1 && gray[q] >= 14) { labels[q] = blobs.length; stack.push(q); }
+      const isClothCell = new Uint8Array(GW * GH);
+      for (let ci = 0; ci < GW * GH; ci++) isClothCell[ci] = cellTotal[ci] && cellCloth[ci] / cellTotal[ci] > 0.5 ? 1 : 0;
+      const seen = new Uint8Array(GW * GH);
+      let bestRegion = null;
+      for (let ci = 0; ci < GW * GH; ci++) {
+        if (!isClothCell[ci] || seen[ci]) continue;
+        const q = [ci];
+        seen[ci] = 1;
+        let minX = GW, maxX = 0, minY = GH, maxY = 0, count = 0;
+        while (q.length) {
+          const c = q.pop();
+          count++;
+          const cx = c % GW, cy = c / GW | 0;
+          if (cx < minX) minX = cx;
+          if (cx > maxX) maxX = cx;
+          if (cy < minY) minY = cy;
+          if (cy > maxY) maxY = cy;
+          for (const [nx, ny] of [[cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]]) {
+            if (nx >= 0 && nx < GW && ny >= 0 && ny < GH) {
+              const nc = ny * GW + nx;
+              if (isClothCell[nc] && !seen[nc]) {
+                seen[nc] = 1;
+                q.push(nc);
               }
-            });
+            }
           }
-          blobs.push({ area, cx: sx / area, cy: sy / area, mnx, mxx, mny, mxy, edge,
-            r: sr / area | 0, g: sg / area | 0, b: sb / area | 0 });
         }
+        if (!bestRegion || count > bestRegion.count) bestRegion = { count, minX, maxX, minY, maxY };
       }
-      const minBall = Math.max(4, tableArea * 0.0004), maxBall = tableArea * 0.012;
-      // intrusion = an edge-touching blob that penetrates the table interior
-      // (rail/background slivers hug the border and never reach this ring)
-      const mIn = 0.14 * Math.min(x1 - x0, y1 - y0);
-      const ix0 = x0 + mIn, ix1 = x1 - mIn, iy0 = y0 + mIn, iy1 = y1 - mIn;
-      for (const bl of blobs) {
-        const bw = bl.mxx - bl.mnx + 1, bh = bl.mxy - bl.mny + 1;
-        if (bl.edge) {
-          if (bl.area > tableArea * 0.02 &&
-              bl.mxx > ix0 && bl.mnx < ix1 && bl.mxy > iy0 && bl.mny < iy1) {
-            this.intrusion = true;
-            this.intrusions.push(bl);
+      if (bestRegion && bestRegion.count >= 18) {
+        const cw = aw / GW, ch = ah / GH;
+        this.tablePx = {
+          x: bestRegion.minX * cw + cw / 2,
+          y: bestRegion.minY * ch + ch / 2,
+          w: (bestRegion.maxX - bestRegion.minX + 1) * cw - cw,
+          h: (bestRegion.maxY - bestRegion.minY + 1) * ch - ch,
+          frac: bestRegion.count / (GW * GH)
+        };
+        this.clothLockFrames++;
+      } else {
+        this.clothLockFrames = Math.max(0, this.clothLockFrames - 2);
+        if (this.clothLockFrames === 0) this.tablePx = null;
+      }
+      const prevG = this.prevW === aw ? this.prevGray : null;
+      let energy = 0;
+      let camShift = { dx: 0, dy: 0, unstable: false };
+      let alignOff = 0;
+      if (this.tablePx && prevG) {
+        const { x, y, w, h } = this.tablePx;
+        const x0 = Math.max(4, x | 0), y0 = Math.max(4, y | 0);
+        const x1 = Math.min(aw - 4, x + w | 0), y1 = Math.min(ah - 4, y + h | 0);
+        const R = 3;
+        let bestDx = 0, bestDy = 0, bestSad = Infinity;
+        for (let dy = -R; dy <= R; dy++) {
+          for (let dx = -R; dx <= R; dx++) {
+            let sad = 0;
+            for (let yy = y0; yy < y1; yy += 4) {
+              const row = yy * aw, prow = (yy + dy) * aw + dx;
+              for (let xx = x0; xx < x1; xx += 4) sad += Math.abs(gray[row + xx] - prevG[prow + xx]);
+            }
+            if (sad < bestSad) {
+              bestSad = sad;
+              bestDx = dx;
+              bestDy = dy;
+            }
           }
-          continue;
         }
-        if (bl.area >= minBall && bl.area <= maxBall && bw / bh < 2.6 && bh / bw < 2.6) {
-          // per-object motion: fraction of this blob's bbox that changed since last frame
+        const atEdge = Math.abs(bestDx) === R || Math.abs(bestDy) === R;
+        alignOff = bestDy * aw + bestDx;
+        let changed = 0, total = 0;
+        for (let yy = y0; yy < y1; yy++) {
+          const row = yy * aw;
+          for (let xx = x0; xx < x1; xx++) {
+            const i = row + xx;
+            total++;
+            if (Math.abs(gray[i] - prevG[i + alignOff]) > this.cfg.diffThreshold) changed++;
+          }
+        }
+        energy = total ? changed / total : 0;
+        const rawUnstable = atEdge && energy > 0.03;
+        const shiftMag = Math.max(Math.abs(bestDx), Math.abs(bestDy));
+        this.camMotionEma = this.camMotionEma * 0.7 + (shiftMag >= 2 || rawUnstable ? 0.3 : shiftMag >= 1 ? 0.12 : 0);
+        camShift = { dx: bestDx, dy: bestDy, unstable: rawUnstable || this.camMotionEma > 0.45 };
+      }
+      const balls = [];
+      const intrusions = [];
+      if (this.tablePx) {
+        const { x, y, w, h } = this.tablePx;
+        const x0 = Math.max(0, x | 0), y0 = Math.max(0, y | 0);
+        const x1 = Math.min(aw, x + w | 0), y1 = Math.min(ah, y + h | 0);
+        const tableArea = (x1 - x0) * (y1 - y0);
+        const labels = new Int32Array(n).fill(-1);
+        const blobs = [];
+        for (let yy = y0; yy < y1; yy++) {
+          for (let xx = x0; xx < x1; xx++) {
+            const i = yy * aw + xx;
+            if (cloth[i] || labels[i] !== -1 || gray[i] < 14) continue;
+            const stack = [i];
+            labels[i] = blobs.length;
+            let area = 0, sr = 0, sg = 0, sb = 0;
+            let mnx = xx, mxx = xx, mny = yy, mxy = yy, edge = false;
+            while (stack.length) {
+              const p = stack.pop();
+              area++;
+              const px = p % aw, py = p / aw | 0;
+              sr += data[p * 4];
+              sg += data[p * 4 + 1];
+              sb += data[p * 4 + 2];
+              if (px < mnx) mnx = px;
+              if (px > mxx) mxx = px;
+              if (py < mny) mny = py;
+              if (py > mxy) mxy = py;
+              if (px <= x0 + 1 || px >= x1 - 2 || py <= y0 + 1 || py >= y1 - 2) edge = true;
+              if (area > tableArea * 0.5) break;
+              for (const [qx, qy] of [[px - 1, py], [px + 1, py], [px, py - 1], [px, py + 1]]) {
+                if (qx >= x0 && qx < x1 && qy >= y0 && qy < y1) {
+                  const q = qy * aw + qx;
+                  if (!cloth[q] && labels[q] === -1 && gray[q] >= 14) {
+                    labels[q] = blobs.length;
+                    stack.push(q);
+                  }
+                }
+              }
+            }
+            blobs.push({ area, mnx, mxx, mny, mxy, edge, r: sr / area | 0, g: sg / area | 0, b: sb / area | 0 });
+          }
+        }
+        const minBall = Math.max(4, tableArea * 4e-4), maxBall = tableArea * 0.012;
+        const mIn = 0.14 * Math.min(x1 - x0, y1 - y0);
+        const ix0 = x0 + mIn, ix1 = x1 - mIn, iy0 = y0 + mIn, iy1 = y1 - mIn;
+        for (const bl of blobs) {
+          const bw = bl.mxx - bl.mnx + 1, bh = bl.mxy - bl.mny + 1;
+          if (bl.edge) {
+            if (bl.area > tableArea * 0.02 && bl.mxx > ix0 && bl.mnx < ix1 && bl.mxy > iy0 && bl.mny < iy1) {
+              intrusions.push(bl);
+            }
+            continue;
+          }
+          if (bl.area < minBall || bl.area > maxBall) continue;
+          if (bw / bh >= 2.6 || bh / bw >= 2.6) continue;
+          const solidity = bl.area / (bw * bh);
+          if (solidity < this.cfg.minSolidity || solidity > this.cfg.maxSolidity) continue;
+          let ringCloth = 0, ringTotal = 0;
+          const rx0 = Math.max(x0, bl.mnx - 2), rx1 = Math.min(x1 - 1, bl.mxx + 2);
+          const ry0 = Math.max(y0, bl.mny - 2), ry1 = Math.min(y1 - 1, bl.mxy + 2);
+          for (let xx = rx0; xx <= rx1; xx++) {
+            ringTotal += 2;
+            if (cloth[ry0 * aw + xx]) ringCloth++;
+            if (cloth[ry1 * aw + xx]) ringCloth++;
+          }
+          for (let yy = ry0; yy <= ry1; yy++) {
+            ringTotal += 2;
+            if (cloth[yy * aw + rx0]) ringCloth++;
+            if (cloth[yy * aw + rx1]) ringCloth++;
+          }
+          if (ringTotal && ringCloth / ringTotal < this.cfg.minClothEnclosure) continue;
           bl.rawMoving = false;
-          if (prevG && !this.camShift.unstable) {
-            const off = this.alignOff || 0;
+          if (prevG && !camShift.unstable) {
             let ch = 0, tot = 0;
             for (let yy = Math.max(4, bl.mny); yy <= Math.min(ah - 5, bl.mxy); yy++) {
               for (let xx = Math.max(4, bl.mnx); xx <= Math.min(aw - 5, bl.mxx); xx++) {
-                const q = yy * aw + xx; tot++;
-                if (Math.abs(gray[q] - prevG[q + off]) > 24) ch++;
+                const q = yy * aw + xx;
+                tot++;
+                if (Math.abs(gray[q] - prevG[q + alignOff]) > this.cfg.diffThreshold) ch++;
               }
             }
-            bl.rawMoving = tot > 0 && ch / tot > 0.18;
+            bl.rawMoving = tot > 0 && ch / tot > this.cfg.ballMotionRatio;
           }
-          this.balls.push(bl);
+          balls.push(bl);
+          if (balls.length >= 20) break;
         }
-      }
-      if (this.balls.length > 20) this.balls.length = 20;
-      // MOVING needs 2 consecutive ticks (matched by position): real rolls
-      // persist, sub-pixel shake residue flickers for a single tick
-      const prevBalls = this.prevBalls || [];
-      for (const b of this.balls) {
-        b.cxa = (b.mnx + b.mxx) / 2; b.cya = (b.mny + b.mxy) / 2;
-        const reach = Math.max(b.mxx - b.mnx, b.mxy - b.mny) + 4;
-        const m = prevBalls.find(p => Math.abs(p.cxa - b.cxa) < reach && Math.abs(p.cya - b.cya) < reach);
-        b.moving = b.rawMoving && !!(m && m.rawMoving);
-      }
-      this.prevBalls = this.balls;
-    }
-    this.prevGray = gray; this.prevW = aw;
-  },
-
-  machine(now) {
-    // camera too unstable to trust → freeze all decisions; if the clock is
-    // running, pause it (ambiguity resolves in the shooter's favor)
-    if (this.camShift && this.camShift.unstable) {
-      if (this.state === "ADDRESSING" && this.lastUnstableAt) {
-        this.clockStart += now - this.lastUnstableAt;
-      }
-      this.lastUnstableAt = now;
-      this.restSince = 0;
-      if (!this.unstableAnnounced) {
-        this.unstableAnnounced = true;
-        pushFeed("TABLE 1", true, "FEED_UNSTABLE — camera moving, clock held", "foul");
-      }
-      return;
-    }
-    if (this.unstableAnnounced) {
-      this.unstableAnnounced = false;
-      this.lastUnstableAt = 0;
-      pushFeed("TABLE 1", true, "FEED_STABLE — camera settled, resuming");
-    }
-    // global energy alone can be distributed shake residue — require a
-    // concrete mover (a ball or the arm/cue) unless energy is overwhelming
-    const ballMoving = this.balls.some(b => b.rawMoving);
-    const concrete = ballMoving || this.intrusion;
-    const moving = this.motionEma > movingThresh() * 2.5 || (this.motionEma > movingThresh() && concrete);
-    const still = this.motionEma < restThresh();
-    // "quiet" tolerates lingering shake residue as long as no ball is
-    // actually moving — otherwise moderate handheld shake pins the state
-    // in ROLLING and the clock can never arm
-    const quiet = still || (!this.balls.some(b => b.moving) && this.motionEma < movingThresh() * 1.5);
-    if (quiet) { if (!this.restSince) this.restSince = now; } else this.restSince = 0;
-    const atRest = this.restSince && (now - this.restSince > cfg.restHoldMs);
-    if (moving || this.intrusion) this.idleSince = now;
-
-    if (!this.table) {
-      if (this.state !== "SEARCHING") { this.setState("SEARCHING"); this.lastEvent = "SEARCHING FOR TABLE"; }
-      return;
-    }
-    switch (this.state) {
-      case "SEARCHING":
-        this.setState("READY");
-        this.lastEvent = "INIT — table locked, awaiting play";
-        break;
-      case "READY":
-        if (this.intrusion && atRest) {
-          if (!this.addressSince) this.addressSince = now;
-          if (now - this.addressSince > cfg.addressHoldMs) {
-            this.setState("ADDRESSING");
-            this.clockStart = now; this.clockLimit = cfg.clockSecs; this.extUsed = false;
-            this.lastEvent = "PLAYER_ADDRESSING — clock " + this.clockLimit + "s";
-            pushFeed("TABLE 1", true, this.lastEvent);
-          }
-        } else {
-          this.addressSince = 0;
-          if (moving) { this.setState("ROLLING"); this.lastEvent = "BALLS_MOVING"; }
+        for (const b of balls) {
+          b.cxa = (b.mnx + b.mxx) / 2;
+          b.cya = (b.mny + b.mxy) / 2;
+          const reach = Math.max(b.mxx - b.mnx, b.mxy - b.mny) + 4;
+          const m = this.prevBalls.find((p) => Math.abs(p.cxa - b.cxa) < reach && Math.abs(p.cya - b.cya) < reach);
+          b.moving = !!b.rawMoving && !!(m && m.rawMoving);
         }
-        break;
-      case "ADDRESSING": {
-        const elapsed = (now - this.clockStart) / 1000;
-        if (moving && this.motionEma > movingThresh() * 1.6) {
-          this.setState("ROLLING");
-          shotTimes.push(elapsed);
-          this.lastEvent = "SHOT_TAKEN — " + elapsed.toFixed(1) + "s used";
-          pushFeed("TABLE 1", true, this.lastEvent, "gold");
-        } else if (elapsed >= this.clockLimit) {
-          this.setState("EXPIRED");
-          fouls++;
-          this.lastEvent = "SHOT_CLOCK_FOUL — clock expired";
-          pushFeed("TABLE 1", true, this.lastEvent, "foul");
-          setTimeout(() => { if (this.state === "EXPIRED") { this.setState("READY"); this.addressSince = 0; } }, 4000);
-        }
-        break;
+        this.prevBalls = balls;
       }
-      case "ROLLING":
-        if (atRest) {
-          this.setState("READY");
-          this.addressSince = 0;
-          this.lastEvent = "BALLS_AT_REST — clock held, awaiting address";
-          pushFeed("TABLE 1", true, this.lastEvent);
-        }
-        break;
-      case "EXPIRED":
-        break;
+      this.prevGray = gray;
+      this.prevW = aw;
+      const t = this.tablePx;
+      return {
+        t: frame.t,
+        table: t ? this.boxToSource(t.x, t.y, t.x + t.w - 1, t.y + t.h - 1, aw, ah) : null,
+        tableConfidence: t ? t.frac : 0,
+        balls: balls.map((b) => ({
+          box: this.boxToSource(b.mnx, b.mny, b.mxx, b.mxy, aw, ah),
+          moving: !!b.moving,
+          rawMoving: !!b.rawMoving,
+          color: { r: b.r, g: b.g, b: b.b }
+        })),
+        intrusions: intrusions.map((b) => this.boxToSource(b.mnx, b.mny, b.mxx, b.mxy, aw, ah)),
+        persons: [],
+        cameraShift: camShift,
+        motionEnergy: energy
+      };
     }
-  },
-
-  clockRemaining(now) {
-    if (this.state !== "ADDRESSING") return this.clockLimit;
-    return Math.max(0, this.clockLimit - (now - this.clockStart) / 1000);
-  },
-
-  async maybePersons(v, now) {
-    if (!cfg.personFps) { this.persons = []; return; }
-    if (this.personBusy || now - this.lastPersonAt < 1000 / cfg.personFps) return;
-    this.personBusy = true;
-    try {
-      if (!this.personModel) {
-        pushFeed("TABLE 1", true, "ML — loading person model (coco-ssd)…");
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js");
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
-        this.personModel = await cocoSsd.load({ base: "lite_mobilenet_v2" });
-        pushFeed("TABLE 1", true, "ML — person model ready", "gold");
-      }
-      const preds = await this.personModel.detect(v);
-      const prev = this.persons;
-      const next = preds.filter(p => p.class === "person" && p.score > 0.5)
-        .map(p => ({ x: p.bbox[0] / v.videoWidth, y: p.bbox[1] / v.videoHeight, w: p.bbox[2] / v.videoWidth, h: p.bbox[3] / v.videoHeight }));
-      next.forEach(p => { p.cx = p.x + p.w / 2; p.cy = p.y + p.h / 2; });
-      // keep PLAYER numbers stable: match each detection to the nearest previous one
-      next.forEach(p => {
-        let best = null, bd = Infinity;
-        for (const q of prev) {
-          const dd = (p.cx - q.cx) ** 2 + (p.cy - q.cy) ** 2;
-          if (dd < bd) { bd = dd; best = q; }
-        }
-        if (best && bd < 0.05) { p.id = best.id; p.moving = Math.sqrt(bd) > 0.012; }
-      });
-      const used = new Set(next.filter(p => p.id).map(p => p.id));
-      let nid = 1;
-      next.slice().sort((a, b) => a.cx - b.cx).forEach(p => {
-        if (!p.id) { while (used.has(nid)) nid++; p.id = nid; used.add(nid); p.moving = false; }
-      });
-      this.persons = next;
-      this.lastPersonAt = now;
-    } catch (err) {
-      cfg.personFps = 0;
-      document.getElementById("cfg-person").value = "0";
-      this.persons = [];
-      pushFeed("TABLE 1", true, "ML — person model unavailable (" + (err && err.message ? err.message : "load failed") + "); continuing without it", "foul");
-    } finally {
-      this.personBusy = false;
-    }
-  },
-
-  meters() {
-    document.getElementById("m-fps").textContent = this.measuredFps.toFixed(1);
-    document.getElementById("m-cost").textContent = this.frameCost.toFixed(1) + " ms";
-    document.getElementById("m-motion").textContent = (this.motionEma * 1000).toFixed(2);
-    document.getElementById("m-motion-bar").style.width = Math.min(100, this.motionEma / (movingThresh() * 2) * 100) + "%";
-    document.getElementById("m-table").textContent = this.table ? Math.round(this.table.frac * 100) + "%" : "—";
-    const cs = this.camShift || { dx: 0, dy: 0, unstable: false };
-    const shiftEl = document.getElementById("m-shift");
-    shiftEl.textContent = cs.unstable ? "UNSTABLE" : cs.dx + "," + cs.dy;
-    shiftEl.style.color = cs.unstable ? "#ff4444" : "";
-    document.getElementById("m-objs").textContent = this.balls.length + " / " + (cfg.personFps ? this.persons.length : "—");
-  },
-};
-
-function loadScript(src) {
-  return new Promise((res, rej) => {
-    if (document.querySelector('script[src="' + src + '"]')) return res();
-    const s = document.createElement("script");
-    s.src = src; s.onload = res; s.onerror = () => rej(new Error("failed to load " + src));
-    document.head.appendChild(s);
-  });
-}
-
-/* ---------------- overlay drawing ---------------- */
-function clearOverlay() {
-  const c = els.cvOverlay, ctx = c.getContext("2d");
-  ctx.clearRect(0, 0, c.width, c.height);
-}
-function drawOverlay(vs) {
-  const c = els.cvOverlay, v = els.cvVideo;
-  const dw = c.clientWidth, dh = c.clientHeight;
-  if (c.width !== dw * devicePixelRatio || c.height !== dh * devicePixelRatio) {
-    c.width = dw * devicePixelRatio; c.height = dh * devicePixelRatio;
-  }
-  const ctx = c.getContext("2d");
-  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-  ctx.clearRect(0, 0, dw, dh);
-  if (!v.videoWidth) return;
-  const L = cfg.overlays;
-  const numFont = getComputedStyle(document.body).getPropertyValue("--font-num");
-  // object-fit: contain mapping
-  const fit = containFit(v, dw, dh);
-  const { ox: fx, oy: fy, sw, sh } = fit;
-  // analysis coords live inside the ROI crop — remap them to the ROI's
-  // on-screen rectangle (full frame when no ROI is set)
-  const roi = vs.roi || { x: 0, y: 0, w: 1, h: 1 };
-  const ox = fx + roi.x * sw, oy = fy + roi.y * sh;
-  const sx = (sw * roi.w) / vs.an.width, sy = (sh * roi.h) / vs.an.height;
-  if (vs.roi) {
-    ctx.strokeStyle = "rgba(245,166,35,0.7)"; ctx.lineWidth = 1.5; ctx.setLineDash([8, 5]);
-    ctx.strokeRect(ox, oy, sw * roi.w, sh * roi.h);
-    ctx.setLineDash([]);
-  }
-  if (roiSelect.cur) {
-    const r = roiSelect.cur;
-    ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
-    ctx.strokeRect(r.x, r.y, r.w, r.h);
-    ctx.setLineDash([]);
-    ctx.fillStyle = "#f5a623";
-    ctx.font = "800 10px " + getComputedStyle(document.body).getPropertyValue("--font-num");
-    ctx.fillText("TABLE AREA", r.x + 4, r.y + 14);
-  }
-
-  function label(x, y, text, color) {
-    ctx.font = "800 9px " + numFont;
-    const w = ctx.measureText(text).width + 8;
-    ctx.fillStyle = "rgba(8,13,26,0.8)";
-    ctx.fillRect(x, y - 11, w, 13);
-    ctx.fillStyle = color;
-    ctx.fillText(text, x + 4, y - 1);
-  }
-
-  if (L.table && vs.table) {
-    const t = vs.table;
-    ctx.strokeStyle = "#00d4ff"; ctx.lineWidth = 2;
-    ctx.shadowColor = "rgba(0,212,255,0.8)"; ctx.shadowBlur = 8;
-    ctx.strokeRect(ox + t.x * sx, oy + t.y * sy, t.w * sx, t.h * sy);
-    ctx.shadowBlur = 0;
-    label(ox + t.x * sx + 2, oy + t.y * sy + 13, "TABLE · LOCKED", "#00d4ff");
-  }
-  if (L.balls) {
-    for (const b of vs.balls) {
-      const bx = ox + b.mnx * sx - 2, by = oy + b.mny * sy - 2;
-      const bw = (b.mxx - b.mnx + 1) * sx + 4, bh = (b.mxy - b.mny + 1) * sy + 4;
-      const isMoving = L.motion && b.moving;
-      ctx.strokeStyle = "rgb(" + b.r + "," + b.g + "," + b.b + ")";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(bx, by, bw, bh);
-      ctx.strokeStyle = isMoving ? "#f5a623" : "rgba(255,255,255,0.65)";
-      ctx.lineWidth = isMoving ? 2 : 1;
-      ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
-      if (L.motion) label(bx, by - 3, isMoving ? "BALL · MOVING" : "BALL · STILL", isMoving ? "#f5a623" : "#7eb8cc");
-    }
-  }
-  if (L.players) {
-    for (const bl of vs.intrusions) {
-      const bx = ox + bl.mnx * sx, by = oy + bl.mny * sy;
-      const bw = (bl.mxx - bl.mnx + 1) * sx, bh = (bl.mxy - bl.mny + 1) * sy;
-      ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
-      ctx.strokeRect(bx, by, bw, bh);
-      ctx.setLineDash([]);
-      label(bx, by - 3, "ARM/CUE · IN TABLE", "#f5a623");
-    }
-    for (const p of vs.persons) {
-      const px = fx + p.x * sw, py = fy + p.y * sh;
-      ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2;
-      ctx.strokeRect(px, py, p.w * sw, p.h * sh);
-      const st = L.motion ? (p.moving ? " · MOVING" : " · STILL") : "";
-      label(px, py - 3, "PLAYER " + p.id + st, "#f5a623");
-    }
-  }
-  if (L.state && !isFrameFullscreen()) {
-    ctx.fillStyle = "rgba(8,13,26,0.75)";
-    ctx.fillRect(6, 6, 190, 22);
-    const unstable = vs.camShift && vs.camShift.unstable;
-    ctx.fillStyle = unstable ? "#ff4444" : vs.state === "ADDRESSING" ? "#00d4ff" : vs.state === "EXPIRED" ? "#ff4444" : "#7eb8cc";
-    ctx.font = "800 11px " + getComputedStyle(document.body).getPropertyValue("--font-ui");
-    const clock = vs.state === "ADDRESSING" ? " · " + Math.ceil(vs.clockRemaining(performance.now())) + "s" : "";
-    ctx.fillText(unstable ? "CAMERA MOVING — HOLD" : vs.state + clock, 14, 21);
-  }
-}
-
-/* ---------------- table area (ROI) selection ---------------- */
-function containFit(v, dw, dh) {
-  const vAR = v.videoWidth / v.videoHeight, dAR = dw / dh;
-  let ox = 0, oy = 0, sw = dw, sh = dh;
-  if (vAR > dAR) { sh = dw / vAR; oy = (dh - sh) / 2; } else { sw = dh * vAR; ox = (dw - sw) / 2; }
-  return { ox, oy, sw, sh };
-}
-const roiSelect = { picking: false, sx: 0, sy: 0, cur: null };
-const roiBtn = document.getElementById("btn-roi");
-function canvasPos(ev) {
-  const r = els.cvOverlay.getBoundingClientRect();
-  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
-}
-const roiBtnFs = document.getElementById("btn-roi-fs");
-roiBtnFs.addEventListener("click", () => roiBtn.click());
-function syncRoiBtns() {
-  roiBtnFs.textContent = roiBtn.textContent;
-  roiBtnFs.classList.toggle("active", roiBtn.classList.contains("active"));
-}
-roiBtn.addEventListener("click", () => {
-  if (vision.roi) {                        // clear
-    vision.setRoi(null);
-    roiBtn.textContent = "SET TABLE AREA";
-    roiBtn.classList.remove("active");
-    return;
-  }
-  roiSelect.picking = !roiSelect.picking;
-  els.cvOverlay.classList.toggle("picking", roiSelect.picking);
-  roiBtn.classList.toggle("active", roiSelect.picking);
-  roiBtn.textContent = roiSelect.picking ? "DRAG ON VIDEO…" : "SET TABLE AREA";
-});
-els.cvOverlay.addEventListener("pointerdown", (ev) => {
-  if (!roiSelect.picking) return;
-  ev.preventDefault();
-  els.cvOverlay.setPointerCapture(ev.pointerId);
-  const p = canvasPos(ev);
-  roiSelect.sx = p.x; roiSelect.sy = p.y;
-  roiSelect.cur = { x: p.x, y: p.y, w: 0, h: 0 };
-});
-els.cvOverlay.addEventListener("pointermove", (ev) => {
-  if (!roiSelect.picking || !roiSelect.cur) return;
-  const p = canvasPos(ev);
-  roiSelect.cur = {
-    x: Math.min(roiSelect.sx, p.x), y: Math.min(roiSelect.sy, p.y),
-    w: Math.abs(p.x - roiSelect.sx), h: Math.abs(p.y - roiSelect.sy),
   };
-});
-els.cvOverlay.addEventListener("pointerup", () => {
-  if (!roiSelect.picking || !roiSelect.cur) return;
-  const r = roiSelect.cur;
-  roiSelect.picking = false; roiSelect.cur = null;
-  els.cvOverlay.classList.remove("picking");
-  roiBtn.classList.remove("active");
-  const v = els.cvVideo, c = els.cvOverlay;
-  const fit = containFit(v, c.clientWidth, c.clientHeight);
-  const nx = (r.x - fit.ox) / fit.sw, ny = (r.y - fit.oy) / fit.sh;
-  const nw = r.w / fit.sw, nh = r.h / fit.sh;
-  if (nw < 0.05 || nh < 0.05) { roiBtn.textContent = "SET TABLE AREA"; return; }  // too small = accidental tap
-  vision.setRoi({
-    x: Math.max(0, Math.min(1, nx)), y: Math.max(0, Math.min(1, ny)),
-    w: Math.min(1 - Math.max(0, nx), nw), h: Math.min(1 - Math.max(0, ny), nh),
-  });
-  roiBtn.textContent = "CLEAR AREA";
-});
 
-/* ---------------- camera zoom ---------------- */
-function setupZoom() {
-  const row = document.getElementById("zoom-row");
-  const sliders = [document.getElementById("cfg-zoom"), document.getElementById("cfg-zoom-fs")];
-  const vals = [document.getElementById("zoom-val"), document.getElementById("zoom-val-fs")];
-  const fsBits = [document.getElementById("fs-zoom-label"), sliders[1], vals[1]];
-  const track = cameraStream && cameraStream.getVideoTracks()[0];
-  const caps = track && track.getCapabilities ? track.getCapabilities() : {};
-  if (!caps.zoom) {
-    row.hidden = true; row.dataset.avail = "0";
-    fsBits.forEach(el => el.hidden = true);
-    return;
+  // apps/admin-dashboard/src/main.js
+  var RULES_PROFILE = WNT_9BALL;
+  var RULES = {
+    standardShot: RULES_PROFILE.shotSeconds,
+    afterBreak: RULES_PROFILE.afterBreakSeconds,
+    extension: RULES_PROFILE.extensionSeconds
+  };
+  var engine = new ClassicalEngine();
+  var watcher = new Watcher(RULES_PROFILE);
+  var LIVE_TRACK = {
+    videoId: "N_oxfCVIJtk",
+    players: ["Player 1", "Player 2"],
+    raceTo: 9,
+    events: []
+  };
+  var feedEl = document.getElementById("feed");
+  var feedCountEl = document.getElementById("feed-count");
+  var feedTotal = 0;
+  function fmtClockTime(d) {
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
   }
-  row.hidden = false; row.dataset.avail = "1";
-  fsBits.forEach(el => el.hidden = false);
-  const start = (track.getSettings && track.getSettings().zoom) || caps.zoom.min;
-  sliders.forEach(sl => {
-    sl.min = caps.zoom.min; sl.max = caps.zoom.max;
-    sl.step = caps.zoom.step || 0.1;
-    sl.value = start;
-    sl.oninput = () => {
-      const z = Number(sl.value);
-      track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {});
-      sliders.forEach(o => { if (o !== sl) o.value = z; });
-      vals.forEach(v => v.textContent = z.toFixed(1) + "×");
+  function pushFeed(label, isLive, ev, cls) {
+    feedTotal++;
+    const item = document.createElement("div");
+    item.className = "feed-item" + (cls ? " " + cls : "");
+    item.innerHTML = '<div class="row1"><span class="tno' + (isLive ? " live" : "") + '"></span><span class="ts num"></span></div><span class="ev"></span>';
+    item.querySelector(".tno").textContent = label;
+    item.querySelector(".ts").textContent = fmtClockTime(/* @__PURE__ */ new Date());
+    item.querySelector(".ev").textContent = ev;
+    const prev = feedEl.querySelector(".latest");
+    if (prev) prev.classList.remove("latest");
+    item.classList.add("latest");
+    feedEl.prepend(item);
+    while (feedEl.children.length > 120) feedEl.lastChild.remove();
+    feedCountEl.textContent = feedTotal + " EVENTS";
+    if (feedEl.scrollTop < 30) feedEl.scrollTop = 0;
+  }
+  var NAMES = [
+    ["S. Souquet", "F. Sanchez-Ruiz"],
+    ["E. Kaci", "M. Konrad"],
+    ["K. Boyes", "W. Acosta"],
+    ["A. Kazakis", "N. Ekonomopoulos"],
+    ["Ko P.C.", "D. Appleton"]
+  ];
+  var rand = (a, b) => a + Math.random() * (b - a);
+  var pick = (a) => a[Math.floor(Math.random() * a.length)];
+  var fouls = 0;
+  var extsUsed = 0;
+  var shotTimes = [];
+  var Table = class _Table {
+    constructor(i) {
+      this.no = i + 2;
+      this.players = NAMES[i % NAMES.length].map((n) => ({ name: n, score: 0, ext: true }));
+      this.raceTo = pick([9, 10, 11]);
+      this.turn = Math.round(Math.random());
+      this.breaker = this.turn;
+      this.phase = "RACKING";
+      this.nextIsBreak = true;
+      this.afterBreak = false;
+      this.clock = RULES.standardShot;
+      this.limit = RULES.standardShot;
+      this.wait = rand(2, 5);
+      this.lastEvent = "RACK_SET";
+    }
+    emit(ev, cls) {
+      pushFeed("TABLE " + this.no, false, ev, cls);
+      this.lastEvent = ev;
+    }
+    tick(dt) {
+      if (this.phase === "MATCH_OVER") return;
+      if (this.phase === "ADDRESSING") {
+        this.clock -= dt;
+        if (this.clock <= 0) {
+          this.clock = 0;
+          this.phase = "EXPIRED";
+          fouls++;
+          this.emit("SHOT_CLOCK_FOUL — ball in hand " + this.players[1 - this.turn].name, "foul");
+          this.wait = rand(4, 7);
+          return;
+        }
+        this.wait -= dt;
+        if (this.wait <= 0) {
+          const p = this.players[this.turn];
+          if (this.clock < 8 && p.ext && Math.random() < 0.3) {
+            p.ext = false;
+            extsUsed++;
+            this.clock += RULES.extension;
+            this.emit("EXTENSION — " + p.name + " (+30s)", "gold");
+            this.wait = rand(3, Math.min(14, this.clock - 2));
+            return;
+          }
+          this.takeShot();
+        }
+        return;
+      }
+      this.wait -= dt;
+      if (this.wait > 0) return;
+      if (this.phase === "RACKING" || this.phase === "GRACE") this.startAddress();
+      else if (this.phase === "EXPIRED") {
+        this.turn = 1 - this.turn;
+        this.phase = "GRACE";
+        this.wait = rand(2, 5);
+      }
+    }
+    startAddress() {
+      const isBreak = this.nextIsBreak;
+      this.limit = this.afterBreak ? RULES.afterBreak : RULES.standardShot;
+      this.clock = this.limit;
+      this.phase = "ADDRESSING";
+      this.shotStart = this.limit;
+      this.emit("PLAYER_ADDRESSING — clock " + this.limit + "s" + (isBreak ? " (break)" : this.afterBreak ? " (after break)" : ""));
+      const r = Math.random();
+      if (r < 0.05) this.wait = this.limit + 5;
+      else if (r < 0.25) this.wait = rand(this.limit * 0.7, this.limit - 1);
+      else this.wait = rand(4, this.limit * 0.6);
+    }
+    takeShot() {
+      shotTimes.push(this.shotStart - this.clock);
+      const wasBreak = this.nextIsBreak;
+      this.nextIsBreak = false;
+      this.afterBreak = wasBreak;
+      this.emit(wasBreak ? "BREAK_DETECTED" : "SHOT_TAKEN", wasBreak ? "gold" : void 0);
+      this.phase = "GRACE";
+      this.wait = rand(3, 8);
+      if (!wasBreak) {
+        if (Math.random() < 0.1) this.gameOver();
+        else if (Math.random() < 0.35) {
+          this.turn = 1 - this.turn;
+          this.wait = rand(4, 9);
+        }
+      } else if (Math.random() < 0.2) this.turn = 1 - this.turn;
+    }
+    gameOver() {
+      const w = this.players[this.turn];
+      w.score++;
+      this.emit("GAME_OVER — rack to " + w.name + " (" + this.players[0].score + "–" + this.players[1].score + ")", "gold");
+      if (w.score >= this.raceTo) {
+        this.phase = "MATCH_OVER";
+        this.emit("MATCH_OVER — " + w.name + " wins " + this.players[0].score + "–" + this.players[1].score, "gold");
+        setTimeout(() => {
+          const i = this.no - 2;
+          tables[i] = new _Table(i);
+          tables[i].emit("NEW_MATCH — " + tables[i].players[0].name + " vs " + tables[i].players[1].name);
+          buildSimCards();
+        }, 12e3 / sim.speed);
+        return;
+      }
+      this.players.forEach((p) => p.ext = true);
+      this.breaker = 1 - this.breaker;
+      this.turn = this.breaker;
+      this.nextIsBreak = true;
+      this.afterBreak = false;
+      this.phase = "RACKING";
+      this.wait = rand(8, 14);
+    }
+  };
+  var MODE = { current: "camera" };
+  var els = {
+    ytPlayer: document.getElementById("yt-player"),
+    cvVideo: document.getElementById("cv-video"),
+    cvOverlay: document.getElementById("cv-overlay"),
+    cameraControls: document.getElementById("camera-controls"),
+    fileControls: document.getElementById("file-controls"),
+    ytControls: document.getElementById("yt-controls"),
+    ytAnnot: document.getElementById("yt-annot"),
+    visionPanel: document.getElementById("vision-panel"),
+    fallback: document.getElementById("video-fallback")
+  };
+  function setMode(mode) {
+    MODE.current = mode;
+    document.querySelectorAll("[data-mode]").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+    const yt = mode === "youtube";
+    els.ytPlayer.hidden = !yt;
+    els.cvVideo.hidden = yt;
+    els.cvOverlay.hidden = yt;
+    els.cameraControls.hidden = mode !== "camera";
+    document.getElementById("zoom-row").hidden = mode !== "camera" || document.getElementById("zoom-row").dataset.avail !== "1";
+    els.fileControls.hidden = mode !== "file";
+    els.ytControls.hidden = !yt;
+    els.ytAnnot.hidden = !yt;
+    document.getElementById("yt-explainer").hidden = !yt;
+    els.visionPanel.classList.toggle("vp-idle", yt);
+    document.getElementById("vp-yt-note").hidden = !yt;
+    if (yt) document.getElementById("vp-state").textContent = "IDLE — EMBED SEALED";
+    document.getElementById("annot-help").classList.remove("show");
+    hideFallback();
+    if (yt) {
+      vision.stop();
+      stopCamera();
+      if (!ytLoadStarted) loadYT();
+      setFeed(ytReady ? "PAUSED" : "IDLE");
+    } else {
+      if (ytReady && ytPlayer.pauseVideo) try {
+        ytPlayer.pauseVideo();
+      } catch (e) {
+      }
+      if (mode === "file") {
+        stopCamera();
+        if (els.cvVideo.src) {
+          els.cvVideo.controls = true;
+          els.cvVideo.play().catch(() => {
+          });
+          vision.start();
+        } else {
+          vision.stop();
+          setFeed("IDLE");
+          showFallback("NO SOURCE", "Choose a video file — a clip you recorded works great.");
+        }
+      } else if (mode === "camera") {
+        els.cvVideo.controls = false;
+        if (cameraStream) {
+          vision.start();
+        } else {
+          vision.stop();
+          els.cvVideo.pause();
+          setFeed("IDLE");
+          showFallback("NO SOURCE", "Press START CAMERA and point it at a pool table.");
+        }
+      }
+    }
+    pushFeed("TABLE 1", true, "SOURCE_MODE — " + mode.toUpperCase(), "gold");
+  }
+  document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  function showFallback(title, detail) {
+    if (title) document.getElementById("fallback-title").textContent = title;
+    if (detail) document.getElementById("fallback-detail").textContent = detail;
+    els.fallback.hidden = false;
+  }
+  function hideFallback() {
+    els.fallback.hidden = true;
+  }
+  function setFeed(state) {
+    const el = document.getElementById("feed-state");
+    el.textContent = "FEED " + state;
+    el.className = "feed-state " + (state === "PLAYING" || state === "LIVE" ? "playing" : state === "LOST" ? "lost" : "paused");
+    live.feed = state;
+  }
+  var cameraStream = null;
+  var cameraFacing = "environment";
+  async function startCamera() {
+    try {
+      stopCamera();
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: cameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        });
+      } catch (e1) {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+      els.cvVideo.controls = false;
+      els.cvVideo.srcObject = cameraStream;
+      els.cvVideo.play().catch(() => {
+      });
+      hideFallback();
+      setFeed("LIVE");
+      document.getElementById("btn-camera").textContent = "STOP CAMERA";
+      document.getElementById("btn-flip").disabled = false;
+      pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — camera live (" + cameraFacing + ")", "gold");
+      setupZoom();
+      vision.start();
+    } catch (err) {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((t) => t.stop());
+        cameraStream = null;
+      }
+      setFeed("LOST");
+      showFallback("CAMERA UNAVAILABLE", (err && err.name) === "NotAllowedError" ? "Camera permission was denied. Allow camera access for this site and try again." : "Could not open a camera: " + (err && err.message ? err.message : err));
+      pushFeed("TABLE 1", true, "FEED_LOST — camera unavailable", "foul");
+    }
+  }
+  els.cvVideo.addEventListener("loadedmetadata", () => {
+    if (MODE.current !== "youtube") els.cvVideo.play().catch(() => {
+    });
+  });
+  document.addEventListener("pointerdown", () => {
+    if (MODE.current !== "youtube" && els.cvVideo.paused && (els.cvVideo.srcObject || els.cvVideo.src)) {
+      els.cvVideo.play().catch(() => {
+      });
+    }
+  });
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((t) => t.stop());
+      cameraStream = null;
+    }
+    const zr = document.getElementById("zoom-row");
+    zr.hidden = true;
+    zr.dataset.avail = "0";
+    if (els.cvVideo.srcObject) els.cvVideo.srcObject = null;
+    document.getElementById("btn-camera").textContent = "START CAMERA";
+    document.getElementById("btn-flip").disabled = true;
+  }
+  document.getElementById("btn-camera").addEventListener("click", () => {
+    if (cameraStream) {
+      vision.stop();
+      stopCamera();
+      setFeed("IDLE");
+      showFallback("NO SOURCE", "Press START CAMERA and point it at a pool table.");
+    } else startCamera();
+  });
+  document.getElementById("btn-flip").addEventListener("click", () => {
+    cameraFacing = cameraFacing === "environment" ? "user" : "environment";
+    startCamera();
+  });
+  document.getElementById("btn-file").addEventListener("click", () => document.getElementById("file-input").click());
+  document.getElementById("file-input").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    els.cvVideo.srcObject = null;
+    els.cvVideo.src = URL.createObjectURL(f);
+    els.cvVideo.controls = true;
+    els.cvVideo.loop = true;
+    els.cvVideo.play().catch(() => {
+    });
+    document.getElementById("file-name").textContent = f.name;
+    hideFallback();
+    setFeed("PLAYING");
+    pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — file loaded: " + f.name, "gold");
+    vision.start();
+  });
+  var cfg = {
+    fps: 12,
+    idleFps: 3,
+    adaptive: true,
+    res: 240,
+    sens: 5,
+    // 1..10 → motion threshold
+    restHoldMs: 700,
+    addressHoldMs: 1200,
+    clockSecs: 30,
+    personFps: 0,
+    overlays: { table: true, balls: true, motion: true, players: true, state: true }
+  };
+  function movingThresh() {
+    return 75e-4 * Math.pow(0.82, cfg.sens);
+  }
+  function restThresh() {
+    return movingThresh() * 0.4;
+  }
+  function syncTuning() {
+    watcher.updateTuning({
+      movingThreshold: movingThresh(),
+      restThreshold: restThresh(),
+      restHoldMs: cfg.restHoldMs,
+      addressHoldMs: cfg.addressHoldMs,
+      shotSeconds: cfg.clockSecs
+    });
+  }
+  var vision = {
+    running: false,
+    lastTick: 0,
+    state: "OFF",
+    motionEma: 0,
+    tableConf: 0,
+    table: null,
+    balls: [],
+    intrusions: [],
+    camShift: { dx: 0, dy: 0, unstable: false },
+    roi: null,
+    persons: [],
+    personModel: null,
+    personBusy: false,
+    lastPersonAt: 0,
+    measuredFps: 0,
+    frameCost: 0,
+    fpsWindow: [],
+    idleSince: 0,
+    get lastEvent() {
+      return watcher.lastEventText;
+    },
+    get turn() {
+      return watcher.turn;
+    },
+    get clockLimit() {
+      return watcher.clockLimit;
+    },
+    get extUsed() {
+      return watcher.extensionUsed;
+    },
+    clockRemaining(now) {
+      return watcher.clockRemaining(now);
+    },
+    start() {
+      if (this.running) return;
+      this.running = true;
+      engine.resetDetection();
+      this.state = "SEARCHING";
+      this.setStateLabel();
+      pushFeed("TABLE 1", true, "VISION_ENGINE — started (" + engine.name + " @ pool-watcher)");
+    },
+    stop() {
+      if (!this.running) return;
+      this.running = false;
+      this.state = "OFF";
+      this.setStateLabel();
+      clearOverlay();
+    },
+    setRoi(roi) {
+      this.roi = roi;
+      engine.setRoi(roi);
+      if (this.running) this.state = "SEARCHING";
+      pushFeed("TABLE 1", true, roi ? "TABLE_AREA_SET — analysis restricted to selection" : "TABLE_AREA_CLEARED — analyzing full frame", "gold");
+    },
+    setStateLabel() {
+      const el = document.getElementById("vp-state");
+      if (el) el.textContent = this.camShift.unstable ? "UNSTABLE" : this.state;
+    },
+    tick(now) {
+      if (!this.running) return;
+      const v = els.cvVideo;
+      if (!v.videoWidth || v.paused || v.ended) {
+        if (MODE.current === "file" && v.paused && v.src) setFeed("PAUSED");
+        return;
+      }
+      if (MODE.current === "file") setFeed("PLAYING");
+      const idle = cfg.adaptive && this.state === "READY" && now - this.idleSince > 3e3;
+      const targetFps = idle ? Math.min(cfg.idleFps, cfg.fps) : cfg.fps;
+      document.getElementById("m-adapt").textContent = idle ? "IDLE " + targetFps : "FULL " + cfg.fps;
+      if (now - this.lastTick < 1e3 / targetFps) return;
+      this.fpsWindow.push(now);
+      while (this.fpsWindow.length && now - this.fpsWindow[0] > 2e3) this.fpsWindow.shift();
+      this.measuredFps = this.fpsWindow.length / 2;
+      this.lastTick = now;
+      const t0 = performance.now();
+      const obs = engine.observe({ t: now, image: v, width: v.videoWidth, height: v.videoHeight });
+      this.frameCost = performance.now() - t0;
+      this.motionEma = this.motionEma * 0.6 + obs.motionEnergy * 0.4;
+      this.table = obs.table;
+      this.tableConf = obs.tableConfidence;
+      this.balls = obs.balls;
+      this.intrusions = obs.intrusions;
+      this.camShift = obs.cameraShift;
+      if (this.motionEma > movingThresh() || obs.intrusions.length) this.idleSince = now;
+      watcher.ingest(Object.assign({}, obs, { motionEnergy: this.motionEma }), now);
+      watcher.tick(now);
+      this.state = watcher.rawState;
+      this.setStateLabel();
+      drawOverlay(this);
+      this.maybePersons(v, now);
+      this.meters();
+    },
+    async maybePersons(v, now) {
+      if (!cfg.personFps) {
+        this.persons = [];
+        return;
+      }
+      if (this.personBusy || now - this.lastPersonAt < 1e3 / cfg.personFps) return;
+      this.personBusy = true;
+      try {
+        if (!this.personModel) {
+          pushFeed("TABLE 1", true, "ML — loading person model (coco-ssd)…");
+          await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js");
+          await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+          this.personModel = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+          pushFeed("TABLE 1", true, "ML — person model ready", "gold");
+        }
+        const preds = await this.personModel.detect(v);
+        const prev = this.persons;
+        const next = preds.filter((p) => p.class === "person" && p.score > 0.5).map((p) => ({ x: p.bbox[0] / v.videoWidth, y: p.bbox[1] / v.videoHeight, w: p.bbox[2] / v.videoWidth, h: p.bbox[3] / v.videoHeight }));
+        next.forEach((p) => {
+          p.cx = p.x + p.w / 2;
+          p.cy = p.y + p.h / 2;
+        });
+        next.forEach((p) => {
+          let best = null, bd = Infinity;
+          for (const q of prev) {
+            const dd = (p.cx - q.cx) ** 2 + (p.cy - q.cy) ** 2;
+            if (dd < bd) {
+              bd = dd;
+              best = q;
+            }
+          }
+          if (best && bd < 0.05) {
+            p.id = best.id;
+            p.moving = Math.sqrt(bd) > 0.012;
+          }
+        });
+        const used = new Set(next.filter((p) => p.id).map((p) => p.id));
+        let nid = 1;
+        next.slice().sort((a, b) => a.cx - b.cx).forEach((p) => {
+          if (!p.id) {
+            while (used.has(nid)) nid++;
+            p.id = nid;
+            used.add(nid);
+            p.moving = false;
+          }
+        });
+        this.persons = next;
+        this.lastPersonAt = now;
+      } catch (err) {
+        cfg.personFps = 0;
+        document.getElementById("cfg-person").value = "0";
+        this.persons = [];
+        pushFeed("TABLE 1", true, "ML — person model unavailable (" + (err && err.message ? err.message : "load failed") + "); continuing without it", "foul");
+      } finally {
+        this.personBusy = false;
+      }
+    },
+    meters() {
+      document.getElementById("m-fps").textContent = this.measuredFps.toFixed(1);
+      document.getElementById("m-cost").textContent = this.frameCost.toFixed(1) + " ms";
+      document.getElementById("m-motion").textContent = (this.motionEma * 1e3).toFixed(2);
+      document.getElementById("m-motion-bar").style.width = Math.min(100, this.motionEma / (movingThresh() * 2) * 100) + "%";
+      document.getElementById("m-table").textContent = this.table ? Math.round(this.tableConf * 100) + "%" : "—";
+      const cs = this.camShift;
+      const shiftEl = document.getElementById("m-shift");
+      shiftEl.textContent = cs.unstable ? "UNSTABLE" : cs.dx + "," + cs.dy;
+      shiftEl.style.color = cs.unstable ? "#ff4444" : "";
+      document.getElementById("m-objs").textContent = this.balls.length + " / " + (cfg.personFps ? this.persons.length : "—");
+    }
+  };
+  watcher.subscribe((e) => {
+    if (e.type === "CLOCK_EXPIRED") fouls++;
+    if (e.type === "EXTENSION_USED") extsUsed++;
+    if (e.type === "SHOT_TAKEN" && e.data && typeof e.data.elapsed === "number") shotTimes.push(e.data.elapsed);
+    if (e.type === "TABLE_ACQUIRED") {
+      pushFeed("TABLE 1", true, "TABLE_ACQUIRED — cloth lock " + Math.round((e.data && e.data.confidence || 0) * 100) + "% of frame", "gold");
+      return;
+    }
+    const cls = { FEED_UNSTABLE: "foul", FEED_LOST: "foul", CLOCK_EXPIRED: "foul", SHOT_TAKEN: "gold", EXTENSION_USED: "gold", GAME_WON: "gold" }[e.type];
+    pushFeed("TABLE 1", true, watcher.lastEventText, cls);
+  });
+  function loadScript(src) {
+    return new Promise((res, rej) => {
+      if (document.querySelector('script[src="' + src + '"]')) return res();
+      const s = document.createElement("script");
+      s.src = src;
+      s.onload = res;
+      s.onerror = () => rej(new Error("failed to load " + src));
+      document.head.appendChild(s);
+    });
+  }
+  function clearOverlay() {
+    const c = els.cvOverlay, ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, c.width, c.height);
+  }
+  function drawOverlay(vs) {
+    const c = els.cvOverlay, v = els.cvVideo;
+    const dw = c.clientWidth, dh = c.clientHeight;
+    if (c.width !== dw * devicePixelRatio || c.height !== dh * devicePixelRatio) {
+      c.width = dw * devicePixelRatio;
+      c.height = dh * devicePixelRatio;
+    }
+    const ctx = c.getContext("2d");
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    ctx.clearRect(0, 0, dw, dh);
+    if (!v.videoWidth) return;
+    const L = cfg.overlays;
+    const numFont = getComputedStyle(document.body).getPropertyValue("--font-num");
+    const fit = containFit(v, dw, dh);
+    const fx = fit.ox, fy = fit.oy, sw = fit.sw, sh = fit.sh;
+    const B = (b) => ({ x: fx + b.x * sw, y: fy + b.y * sh, w: b.w * sw, h: b.h * sh });
+    function label(x, y, text, color) {
+      ctx.font = "800 9px " + numFont;
+      const w = ctx.measureText(text).width + 8;
+      ctx.fillStyle = "rgba(8,13,26,0.8)";
+      ctx.fillRect(x, y - 11, w, 13);
+      ctx.fillStyle = color;
+      ctx.fillText(text, x + 4, y - 1);
+    }
+    if (vs.roi) {
+      const r = B(vs.roi);
+      ctx.strokeStyle = "rgba(245,166,35,0.7)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([8, 5]);
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
+      ctx.setLineDash([]);
+    }
+    if (roiSelect.cur) {
+      const r = roiSelect.cur;
+      ctx.strokeStyle = "#f5a623";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#f5a623";
+      ctx.font = "800 10px " + numFont;
+      ctx.fillText("TABLE AREA", r.x + 4, r.y + 14);
+    }
+    if (L.table && vs.table) {
+      const t = B(vs.table);
+      ctx.strokeStyle = "#00d4ff";
+      ctx.lineWidth = 2;
+      ctx.shadowColor = "rgba(0,212,255,0.8)";
+      ctx.shadowBlur = 8;
+      ctx.strokeRect(t.x, t.y, t.w, t.h);
+      ctx.shadowBlur = 0;
+      label(t.x + 2, t.y + 13, "TABLE · LOCKED", "#00d4ff");
+    }
+    if (L.balls) {
+      for (const b of vs.balls) {
+        const r = B(b.box);
+        const bx = r.x - 2, by = r.y - 2, bw = r.w + 4, bh = r.h + 4;
+        const isMoving = L.motion && b.moving;
+        ctx.strokeStyle = "rgb(" + b.color.r + "," + b.color.g + "," + b.color.b + ")";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, by, bw, bh);
+        ctx.strokeStyle = isMoving ? "#f5a623" : "rgba(255,255,255,0.65)";
+        ctx.lineWidth = isMoving ? 2 : 1;
+        ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+        if (L.motion) label(bx, by - 3, isMoving ? "BALL · MOVING" : "BALL · STILL", isMoving ? "#f5a623" : "#7eb8cc");
+      }
+    }
+    if (L.players) {
+      for (const ib of vs.intrusions) {
+        const r = B(ib);
+        ctx.strokeStyle = "#f5a623";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        ctx.setLineDash([]);
+        label(r.x, r.y - 3, "ARM/CUE · IN TABLE", "#f5a623");
+      }
+      for (const p of vs.persons) {
+        const px = fx + p.x * sw, py = fy + p.y * sh;
+        ctx.strokeStyle = "#f5a623";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px, py, p.w * sw, p.h * sh);
+        const st = L.motion ? p.moving ? " · MOVING" : " · STILL" : "";
+        label(px, py - 3, "PLAYER " + p.id + st, "#f5a623");
+      }
+    }
+    if (L.state && !isFrameFullscreen()) {
+      const unstable = vs.camShift && vs.camShift.unstable;
+      ctx.fillStyle = "rgba(8,13,26,0.75)";
+      ctx.fillRect(6, 6, 190, 22);
+      ctx.fillStyle = unstable ? "#ff4444" : vs.state === "ADDRESSING" ? "#00d4ff" : vs.state === "EXPIRED" ? "#ff4444" : "#7eb8cc";
+      ctx.font = "800 11px " + getComputedStyle(document.body).getPropertyValue("--font-ui");
+      const clock = vs.state === "ADDRESSING" ? " · " + Math.ceil(vs.clockRemaining(performance.now())) + "s" : "";
+      ctx.fillText(unstable ? "CAMERA MOVING — HOLD" : vs.state + clock, 14, 21);
+    }
+  }
+  function containFit(v, dw, dh) {
+    const vAR = v.videoWidth / v.videoHeight, dAR = dw / dh;
+    let ox = 0, oy = 0, sw = dw, sh = dh;
+    if (vAR > dAR) {
+      sh = dw / vAR;
+      oy = (dh - sh) / 2;
+    } else {
+      sw = dh * vAR;
+      ox = (dw - sw) / 2;
+    }
+    return { ox, oy, sw, sh };
+  }
+  var roiSelect = { picking: false, sx: 0, sy: 0, cur: null };
+  var roiBtn = document.getElementById("btn-roi");
+  function canvasPos(ev) {
+    const r = els.cvOverlay.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+  var roiBtnFs = document.getElementById("btn-roi-fs");
+  roiBtnFs.addEventListener("click", () => roiBtn.click());
+  function syncRoiBtns() {
+    roiBtnFs.textContent = roiBtn.textContent;
+    roiBtnFs.classList.toggle("active", roiBtn.classList.contains("active"));
+  }
+  roiBtn.addEventListener("click", () => {
+    if (vision.roi) {
+      vision.setRoi(null);
+      roiBtn.textContent = "SET TABLE AREA";
+      roiBtn.classList.remove("active");
+      return;
+    }
+    roiSelect.picking = !roiSelect.picking;
+    els.cvOverlay.classList.toggle("picking", roiSelect.picking);
+    roiBtn.classList.toggle("active", roiSelect.picking);
+    roiBtn.textContent = roiSelect.picking ? "DRAG ON VIDEO…" : "SET TABLE AREA";
+  });
+  els.cvOverlay.addEventListener("pointerdown", (ev) => {
+    if (!roiSelect.picking) return;
+    ev.preventDefault();
+    els.cvOverlay.setPointerCapture(ev.pointerId);
+    const p = canvasPos(ev);
+    roiSelect.sx = p.x;
+    roiSelect.sy = p.y;
+    roiSelect.cur = { x: p.x, y: p.y, w: 0, h: 0 };
+  });
+  els.cvOverlay.addEventListener("pointermove", (ev) => {
+    if (!roiSelect.picking || !roiSelect.cur) return;
+    const p = canvasPos(ev);
+    roiSelect.cur = {
+      x: Math.min(roiSelect.sx, p.x),
+      y: Math.min(roiSelect.sy, p.y),
+      w: Math.abs(p.x - roiSelect.sx),
+      h: Math.abs(p.y - roiSelect.sy)
     };
   });
-  vals.forEach(v => v.textContent = Number(start).toFixed(1) + "×");
-}
-
-/* ---------------- fullscreen ---------------- */
-const frameEl = document.querySelector(".video-frame");
-const fsBtn = document.getElementById("btn-fullscreen");
-async function exitFs() {
-  if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (e) {} }
-  try { screen.orientation.unlock(); } catch (e) {}
-  frameEl.classList.remove("fake-full");
-  document.body.style.overflow = "";
-  fsBtn.textContent = "⛶";
-}
-fsBtn.addEventListener("click", async () => {
-  if (document.fullscreenElement || frameEl.classList.contains("fake-full")) return exitFs();
-  try {
-    // fullscreen the CONTAINER so the overlay canvas rides along
-    if (frameEl.requestFullscreen) await frameEl.requestFullscreen();
-    else if (frameEl.webkitRequestFullscreen) frameEl.webkitRequestFullscreen();
-    else throw new Error("unsupported");
-  } catch (e) {
-    // iPhones block element fullscreen — fixed-position fallback
-    frameEl.classList.add("fake-full");
-    document.body.style.overflow = "hidden";
-  }
-  // portrait phone + landscape video = tiny letterboxed strip; rotate the
-  // screen so the feed fills the display (Android; no-op where unsupported)
-  try { await screen.orientation.lock("landscape"); } catch (e) {}
-  fsBtn.textContent = "✕";
-});
-document.addEventListener("fullscreenchange", () => {
-  if (!document.fullscreenElement) {
-    try { screen.orientation.unlock(); } catch (e) {}
-    frameEl.classList.remove("fake-full"); document.body.style.overflow = ""; fsBtn.textContent = "⛶";
-  }
-});
-
-/* ---------------- control panel bindings ---------------- */
-function bindNum(id, key, min, max) {
-  const el = document.getElementById(id);
-  el.addEventListener("change", () => {
-    let v = Number(el.value);
-    if (!isFinite(v)) v = cfg[key];
-    v = Math.max(min, Math.min(max, v));
-    el.value = v;
-    cfg[key] = v;
-    pushFeed("TABLE 1", true, "CONFIG — " + key + " = " + v);
+  els.cvOverlay.addEventListener("pointerup", () => {
+    if (!roiSelect.picking || !roiSelect.cur) return;
+    const r = roiSelect.cur;
+    roiSelect.picking = false;
+    roiSelect.cur = null;
+    els.cvOverlay.classList.remove("picking");
+    roiBtn.classList.remove("active");
+    const v = els.cvVideo, c = els.cvOverlay;
+    const fit = containFit(v, c.clientWidth, c.clientHeight);
+    const nx = (r.x - fit.ox) / fit.sw, ny = (r.y - fit.oy) / fit.sh;
+    const nw = r.w / fit.sw, nh = r.h / fit.sh;
+    if (nw < 0.05 || nh < 0.05) {
+      roiBtn.textContent = "SET TABLE AREA";
+      return;
+    }
+    vision.setRoi({
+      x: Math.max(0, Math.min(1, nx)),
+      y: Math.max(0, Math.min(1, ny)),
+      w: Math.min(1 - Math.max(0, nx), nw),
+      h: Math.min(1 - Math.max(0, ny), nh)
+    });
+    roiBtn.textContent = "CLEAR AREA";
   });
-}
-bindNum("cfg-fps", "fps", 1, 30);
-bindNum("cfg-idlefps", "idleFps", 1, 30);
-bindNum("cfg-rest", "restHoldMs", 100, 5000);
-bindNum("cfg-address", "addressHoldMs", 200, 5000);
-bindNum("cfg-clock", "clockSecs", 5, 120);
-document.getElementById("cfg-res").addEventListener("change", (e) => { cfg.res = Number(e.target.value); pushFeed("TABLE 1", true, "CONFIG — resolution = " + cfg.res + "px"); });
-document.getElementById("cfg-sens").addEventListener("input", (e) => {
-  cfg.sens = Number(e.target.value);
-  document.getElementById("cfg-sens-val").textContent = cfg.sens;
-});
-document.getElementById("cfg-person").addEventListener("change", (e) => { cfg.personFps = Number(e.target.value); });
-document.querySelectorAll("[data-layer]").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const k = btn.dataset.layer;
-    cfg.overlays[k] = !cfg.overlays[k];
-    btn.classList.toggle("active", cfg.overlays[k]);
-  });
-});
-document.getElementById("btn-adaptive").addEventListener("click", (e) => {
-  cfg.adaptive = !cfg.adaptive;
-  e.target.textContent = "ADAPTIVE: " + (cfg.adaptive ? "ON" : "OFF");
-  e.target.classList.toggle("active", !cfg.adaptive);
-});
-document.getElementById("btn-ext-live").addEventListener("click", () => {
-  if (vision.state === "ADDRESSING" && !vision.extUsed) {
-    vision.extUsed = true; extsUsed++;
-    vision.clockLimit += RULES.extension;
-    pushFeed("TABLE 1", true, "EXTENSION — +30s (manual)", "gold");
+  function setupZoom() {
+    const row = document.getElementById("zoom-row");
+    const sliders = [document.getElementById("cfg-zoom"), document.getElementById("cfg-zoom-fs")];
+    const vals = [document.getElementById("zoom-val"), document.getElementById("zoom-val-fs")];
+    const fsBits = [document.getElementById("fs-zoom-label"), sliders[1], vals[1]];
+    const track = cameraStream && cameraStream.getVideoTracks()[0];
+    const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.zoom) {
+      row.hidden = true;
+      row.dataset.avail = "0";
+      fsBits.forEach((el) => el.hidden = true);
+      return;
+    }
+    row.hidden = false;
+    row.dataset.avail = "1";
+    fsBits.forEach((el) => el.hidden = false);
+    const start = track.getSettings && track.getSettings().zoom || caps.zoom.min;
+    sliders.forEach((sl) => {
+      sl.min = caps.zoom.min;
+      sl.max = caps.zoom.max;
+      sl.step = caps.zoom.step || 0.1;
+      sl.value = start;
+      sl.oninput = () => {
+        const z = Number(sl.value);
+        track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {
+        });
+        sliders.forEach((o) => {
+          if (o !== sl) o.value = z;
+        });
+        vals.forEach((v) => v.textContent = z.toFixed(1) + "×");
+      };
+    });
+    vals.forEach((v) => v.textContent = Number(start).toFixed(1) + "×");
   }
-});
-document.getElementById("btn-reset-live").addEventListener("click", () => {
-  vision.addressSince = 0;
-  if (vision.state === "ADDRESSING" || vision.state === "EXPIRED") vision.setState("READY");
-  pushFeed("TABLE 1", true, "CLOCK_RESET — manual");
-});
-
-/* ============================================================
-   YOUTUBE MODE (annotation track playback — unchanged contract)
-   ============================================================ */
-let currentVideoId = LIVE_TRACK.videoId;
-try { currentVideoId = localStorage.getItem("pw01-video-id") || currentVideoId; } catch (e) {}
-const live = { feed: "IDLE", videoT: 0, annotate: false, draft: [], lastAnnounced: -1 };
-function draftKey() { return "pw01-live-track:" + currentVideoId; }
-function loadDraft() {
-  try { live.draft = JSON.parse(localStorage.getItem(draftKey()) || "[]"); } catch (e) { live.draft = []; }
-}
-loadDraft();
-function trackEvents() {
-  return (currentVideoId === LIVE_TRACK.videoId && LIVE_TRACK.events.length) ? LIVE_TRACK.events : live.draft;
-}
-function saveDraft() {
-  try { localStorage.setItem(draftKey(), JSON.stringify(live.draft)); } catch (e) {}
-  document.getElementById("annot-count").textContent = trackEvents().length + " track events";
-}
-function replayLive(t) {
-  const s = {
-    players: LIVE_TRACK.players.map(nm => ({ name: nm, score: 0, ext: true })),
-    turn: 0, phase: "AWAITING", nextIsBreak: true, afterBreak: false,
-    limit: RULES.standardShot, addressT: null, lastEvent: "AWAITING CV TRACK",
-  };
-  for (const ev of trackEvents()) {
-    if (ev.t > t) break;
-    switch (ev.e) {
-      case "ADDRESS":
-      case "BREAK":
-        s.limit = ev.e === "BREAK" ? RULES.standardShot : (s.afterBreak ? RULES.afterBreak : RULES.standardShot);
-        if (ev.e === "BREAK") s.nextIsBreak = true;
-        s.phase = "ADDRESSING"; s.addressT = ev.t;
-        s.lastEvent = "PLAYER_ADDRESSING — clock " + s.limit + "s" + (s.afterBreak ? " (after break)" : "");
-        break;
-      case "SHOT": {
-        const wasBreak = s.nextIsBreak;
-        s.nextIsBreak = false; s.afterBreak = wasBreak;
-        s.phase = "GRACE"; s.addressT = null;
-        s.lastEvent = wasBreak ? "BREAK_DETECTED" : "SHOT_TAKEN";
-        break;
-      }
-      case "TURN": s.turn = 1 - s.turn; s.phase = s.phase === "ADDRESSING" ? "GRACE" : s.phase; break;
-      case "EXT": { const p = s.players[s.turn]; if (p.ext) { p.ext = false; if (s.addressT !== null) s.addressT += RULES.extension; } s.lastEvent = "EXTENSION — " + p.name; break; }
-      case "GAME": {
-        const w = s.players[s.turn]; w.score++;
-        s.players.forEach(p => p.ext = true);
-        s.nextIsBreak = true; s.afterBreak = false; s.phase = "RACKING"; s.addressT = null;
-        s.lastEvent = "GAME_OVER — rack to " + w.name;
-        break;
+  var frameEl = document.querySelector(".video-frame");
+  var fsBtn = document.getElementById("btn-fullscreen");
+  async function exitFs() {
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch (e) {
       }
     }
+    try {
+      screen.orientation.unlock();
+    } catch (e) {
+    }
+    frameEl.classList.remove("fake-full");
+    document.body.style.overflow = "";
+    fsBtn.textContent = "⛶";
   }
-  s.clock = s.limit;
-  if (s.phase === "ADDRESSING" && s.addressT !== null) {
-    s.clock = s.limit - (t - s.addressT);
-    if (s.clock <= 0) { s.clock = 0; s.phase = "EXPIRED"; s.lastEvent = "SHOT_CLOCK_FOUL (per track)"; }
-  }
-  return s;
-}
-function announceYt(t) {
-  for (const ev of trackEvents()) {
-    if (ev.t <= live.lastAnnounced) continue;
-    if (ev.t > t) break;
-    const names = { ADDRESS: "PLAYER_ADDRESSING", SHOT: "SHOT_TAKEN", BREAK: "BREAK_SHOT", TURN: "TURN_CHANGE", EXT: "EXTENSION", GAME: "GAME_OVER" };
-    pushFeed("TABLE 1", true, names[ev.e] + " @ " + fmtVideoT(ev.t), ev.e === "GAME" || ev.e === "EXT" || ev.e === "BREAK" ? "gold" : undefined);
-    live.lastAnnounced = ev.t;
-  }
-  if (t < live.lastAnnounced) live.lastAnnounced = t;
-}
-function fmtVideoT(t) {
-  const m = Math.floor(t / 60), s = Math.floor(t % 60);
-  return m + ":" + String(s).padStart(2, "0");
-}
-
-let ytPlayer = null, ytReady = false, ytLoadStarted = false;
-const YT_ERRORS = {
-  2:   ["INVALID VIDEO ID", "YouTube rejected that video ID. Check the URL and LOAD another."],
-  5:   ["PLAYER ERROR", "The HTML5 player hit an error. Try reloading, or LOAD another video."],
-  100: ["VIDEO NOT FOUND", "That video is removed or private. LOAD another one."],
-  101: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video."],
-  150: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video."],
-};
-window.onYouTubeIframeAPIReady = function () {
-  ytPlayer = new YT.Player("yt-player", {
-    videoId: currentVideoId,
-    playerVars: { rel: 0, modestbranding: 1 },
-    events: {
-      onReady: () => { ytReady = true; if (MODE.current === "youtube") setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — video feed connected", "gold"); },
-      onStateChange: (e) => {
-        if (MODE.current !== "youtube") return;
-        if (e.data === YT.PlayerState.PLAYING) { hideFallback(); setFeed("PLAYING"); }
-        else if (e.data === YT.PlayerState.PAUSED) { setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_HOLD — playback paused"); }
-        else if (e.data === YT.PlayerState.BUFFERING) setFeed("BUFFERING");
-        else if (e.data === YT.PlayerState.ENDED) { setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_ENDED — video finished"); }
-        else if (e.data === YT.PlayerState.CUED) { hideFallback(); setFeed("PAUSED"); }
-      },
-      onError: (e) => {
-        if (MODE.current !== "youtube") return;
-        const [title, detail] = YT_ERRORS[e.data] || ["VIDEO UNAVAILABLE", "The player reported error " + e.data + ". LOAD another video."];
-        setFeed("LOST");
-        showFallback(title, detail);
-        pushFeed("TABLE 1", true, "FEED_LOST — " + title.toLowerCase() + " (yt error " + e.data + ")", "foul");
-      },
-    },
+  fsBtn.addEventListener("click", async () => {
+    if (document.fullscreenElement || frameEl.classList.contains("fake-full")) return exitFs();
+    try {
+      if (frameEl.requestFullscreen) await frameEl.requestFullscreen();
+      else if (frameEl.webkitRequestFullscreen) frameEl.webkitRequestFullscreen();
+      else throw new Error("unsupported");
+    } catch (e) {
+      frameEl.classList.add("fake-full");
+      document.body.style.overflow = "hidden";
+    }
+    try {
+      await screen.orientation.lock("landscape");
+    } catch (e) {
+    }
+    fsBtn.textContent = "✕";
   });
-};
-function loadYT() {
-  ytLoadStarted = true;
-  const tag = document.createElement("script");
-  tag.src = "https://www.youtube.com/iframe_api";
-  tag.onerror = () => { if (MODE.current === "youtube") { setFeed("LOST"); showFallback("YOUTUBE UNREACHABLE", "The IFrame API could not load."); pushFeed("TABLE 1", true, "FEED_LOST — YouTube unreachable", "foul"); } };
-  document.head.appendChild(tag);
-  setTimeout(() => { if (!ytReady && MODE.current === "youtube" && live.feed === "IDLE") { setFeed("LOST"); showFallback("YOUTUBE UNREACHABLE", "The IFrame API did not respond."); } }, 8000);
-}
-
-/* URL input */
-const urlInput = document.getElementById("video-url");
-const btnEditUrl = document.getElementById("btn-edit-url");
-const btnLoadUrl = document.getElementById("btn-load-url");
-urlInput.value = "https://youtu.be/" + currentVideoId;
-function parseYouTubeId(raw) {
-  const s = raw.trim();
-  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
-  const m = s.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/);
-  return m ? m[1] : null;
-}
-btnEditUrl.addEventListener("click", () => {
-  urlInput.disabled = !urlInput.disabled;
-  btnLoadUrl.disabled = urlInput.disabled;
-  btnEditUrl.classList.toggle("active", !urlInput.disabled);
-  btnEditUrl.textContent = urlInput.disabled ? "EDIT" : "LOCK";
-  if (!urlInput.disabled) { urlInput.focus(); urlInput.select(); }
-});
-function loadVideoFromInput() {
-  const id = parseYouTubeId(urlInput.value);
-  if (!id) {
-    urlInput.classList.add("bad");
-    setTimeout(() => urlInput.classList.remove("bad"), 1200);
-    return;
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement) {
+      try {
+        screen.orientation.unlock();
+      } catch (e) {
+      }
+      frameEl.classList.remove("fake-full");
+      document.body.style.overflow = "";
+      fsBtn.textContent = "⛶";
+    }
+  });
+  function bindNum(id, key, min, max) {
+    const el = document.getElementById(id);
+    el.addEventListener("change", () => {
+      let v = Number(el.value);
+      if (!isFinite(v)) v = cfg[key];
+      v = Math.max(min, Math.min(max, v));
+      el.value = v;
+      cfg[key] = v;
+      pushFeed("TABLE 1", true, "CONFIG — " + key + " = " + v);
+    });
   }
-  currentVideoId = id;
-  try { localStorage.setItem("pw01-video-id", id); } catch (e) {}
-  urlInput.value = "https://youtu.be/" + id;
-  urlInput.disabled = true; btnLoadUrl.disabled = true;
-  btnEditUrl.classList.remove("active"); btnEditUrl.textContent = "EDIT";
-  live.lastAnnounced = -1;
-  loadDraft(); saveDraft();
-  hideFallback();
-  pushFeed("TABLE 1", true, "VIDEO_SOURCE_CHANGED — " + id, "gold");
-  if (ytReady && ytPlayer.cueVideoById) ytPlayer.cueVideoById(id);
-  else showFallback("PLAYER UNAVAILABLE", "The YouTube player never loaded, so the new source can't play. Reload the page to retry.");
-}
-btnLoadUrl.addEventListener("click", loadVideoFromInput);
-urlInput.addEventListener("keydown", (ev) => { if (ev.key === "Enter") loadVideoFromInput(); });
-
-/* annotate mode */
-const KEYMAP = { a: "ADDRESS", s: "SHOT", b: "BREAK", t: "TURN", e: "EXT", g: "GAME" };
-document.addEventListener("keydown", (ev) => {
-  if (ev.target === urlInput || ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT") return;
-  if (MODE.current !== "youtube" || !live.annotate || !ytReady) return;
-  const k = ev.key.toLowerCase();
-  if (k === "z") {
-    const undone = live.draft.pop();
-    if (undone) { saveDraft(); pushFeed("TABLE 1", true, "ANNOTATE — undid " + undone.e + " @ " + fmtVideoT(undone.t)); }
-    return;
+  bindNum("cfg-fps", "fps", 1, 30);
+  bindNum("cfg-idlefps", "idleFps", 1, 30);
+  bindNum("cfg-rest", "restHoldMs", 100, 5e3);
+  bindNum("cfg-address", "addressHoldMs", 200, 5e3);
+  bindNum("cfg-clock", "clockSecs", 5, 120);
+  document.getElementById("cfg-res").addEventListener("change", (e) => {
+    cfg.res = Number(e.target.value);
+    engine.cfg.res = cfg.res;
+    engine.resetDetection();
+    pushFeed("TABLE 1", true, "CONFIG — resolution = " + cfg.res + "px");
+  });
+  for (const id of ["cfg-rest", "cfg-address", "cfg-clock"]) {
+    document.getElementById(id).addEventListener("change", syncTuning);
   }
-  if (!KEYMAP[k]) return;
-  if (currentVideoId === LIVE_TRACK.videoId && LIVE_TRACK.events.length) return;
-  const t = Math.round(ytPlayer.getCurrentTime() * 10) / 10;
-  live.draft.push({ t, e: KEYMAP[k] });
-  live.draft.sort((x, y) => x.t - y.t);
-  live.lastAnnounced = -1;
-  saveDraft();
-  pushFeed("TABLE 1", true, "ANNOTATE — " + KEYMAP[k] + " @ " + fmtVideoT(t), "gold");
-});
-document.getElementById("btn-annotate").addEventListener("click", (e) => {
-  live.annotate = !live.annotate;
-  e.target.classList.toggle("active", live.annotate);
-  document.getElementById("annot-help").classList.toggle("show", live.annotate);
-});
-document.getElementById("btn-export").addEventListener("click", async (e) => {
-  const json = JSON.stringify(trackEvents());
-  try { await navigator.clipboard.writeText(json); e.target.textContent = "COPIED ✓"; }
-  catch (err) { window.prompt("Copy the track JSON:", json); }
-  setTimeout(() => { e.target.textContent = "EXPORT TRACK"; }, 1500);
-});
-
-/* ============================================================
-   RENDERING
-   ============================================================ */
-const tables = Array.from({ length: 5 }, (_, i) => new Table(i));
-const tablesEl = document.getElementById("tables");
-const CIRC = 2 * Math.PI * 53;
-
-function cardInner(idSuffix, raceLabel, liveLabel) {
-  return `
+  document.getElementById("cfg-sens").addEventListener("input", (e) => {
+    cfg.sens = Number(e.target.value);
+    document.getElementById("cfg-sens-val").textContent = cfg.sens;
+    syncTuning();
+  });
+  document.getElementById("cfg-person").addEventListener("change", (e) => {
+    cfg.personFps = Number(e.target.value);
+  });
+  document.querySelectorAll("[data-layer]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.layer;
+      cfg.overlays[k] = !cfg.overlays[k];
+      btn.classList.toggle("active", cfg.overlays[k]);
+    });
+  });
+  document.getElementById("btn-adaptive").addEventListener("click", (e) => {
+    cfg.adaptive = !cfg.adaptive;
+    e.target.textContent = "ADAPTIVE: " + (cfg.adaptive ? "ON" : "OFF");
+    e.target.classList.toggle("active", !cfg.adaptive);
+  });
+  document.getElementById("btn-ext-live").addEventListener("click", () => {
+    watcher.dispatch({ type: "EXTENSION_USED", origin: "admin" });
+  });
+  document.getElementById("btn-reset-live").addEventListener("click", () => {
+    watcher.dispatch({ type: "CLOCK_OVERRIDE", origin: "admin" });
+  });
+  var currentVideoId = LIVE_TRACK.videoId;
+  try {
+    currentVideoId = localStorage.getItem("pw01-video-id") || currentVideoId;
+  } catch (e) {
+  }
+  var live = { feed: "IDLE", videoT: 0, annotate: false, draft: [], lastAnnounced: -1 };
+  function draftKey() {
+    return "pw01-live-track:" + currentVideoId;
+  }
+  function loadDraft() {
+    try {
+      live.draft = JSON.parse(localStorage.getItem(draftKey()) || "[]");
+    } catch (e) {
+      live.draft = [];
+    }
+  }
+  loadDraft();
+  function trackEvents() {
+    return currentVideoId === LIVE_TRACK.videoId && LIVE_TRACK.events.length ? LIVE_TRACK.events : live.draft;
+  }
+  function saveDraft() {
+    try {
+      localStorage.setItem(draftKey(), JSON.stringify(live.draft));
+    } catch (e) {
+    }
+    document.getElementById("annot-count").textContent = trackEvents().length + " track events";
+  }
+  function replayLive(t) {
+    const s = {
+      players: LIVE_TRACK.players.map((nm) => ({ name: nm, score: 0, ext: true })),
+      turn: 0,
+      phase: "AWAITING",
+      nextIsBreak: true,
+      afterBreak: false,
+      limit: RULES.standardShot,
+      addressT: null,
+      lastEvent: "AWAITING CV TRACK"
+    };
+    for (const ev of trackEvents()) {
+      if (ev.t > t) break;
+      switch (ev.e) {
+        case "ADDRESS":
+        case "BREAK":
+          s.limit = ev.e === "BREAK" ? RULES.standardShot : s.afterBreak ? RULES.afterBreak : RULES.standardShot;
+          if (ev.e === "BREAK") s.nextIsBreak = true;
+          s.phase = "ADDRESSING";
+          s.addressT = ev.t;
+          s.lastEvent = "PLAYER_ADDRESSING — clock " + s.limit + "s" + (s.afterBreak ? " (after break)" : "");
+          break;
+        case "SHOT": {
+          const wasBreak = s.nextIsBreak;
+          s.nextIsBreak = false;
+          s.afterBreak = wasBreak;
+          s.phase = "GRACE";
+          s.addressT = null;
+          s.lastEvent = wasBreak ? "BREAK_DETECTED" : "SHOT_TAKEN";
+          break;
+        }
+        case "TURN":
+          s.turn = 1 - s.turn;
+          s.phase = s.phase === "ADDRESSING" ? "GRACE" : s.phase;
+          break;
+        case "EXT": {
+          const p = s.players[s.turn];
+          if (p.ext) {
+            p.ext = false;
+            if (s.addressT !== null) s.addressT += RULES.extension;
+          }
+          s.lastEvent = "EXTENSION — " + p.name;
+          break;
+        }
+        case "GAME": {
+          const w = s.players[s.turn];
+          w.score++;
+          s.players.forEach((p) => p.ext = true);
+          s.nextIsBreak = true;
+          s.afterBreak = false;
+          s.phase = "RACKING";
+          s.addressT = null;
+          s.lastEvent = "GAME_OVER — rack to " + w.name;
+          break;
+        }
+      }
+    }
+    s.clock = s.limit;
+    if (s.phase === "ADDRESSING" && s.addressT !== null) {
+      s.clock = s.limit - (t - s.addressT);
+      if (s.clock <= 0) {
+        s.clock = 0;
+        s.phase = "EXPIRED";
+        s.lastEvent = "SHOT_CLOCK_FOUL (per track)";
+      }
+    }
+    return s;
+  }
+  function announceYt(t) {
+    for (const ev of trackEvents()) {
+      if (ev.t <= live.lastAnnounced) continue;
+      if (ev.t > t) break;
+      const names = { ADDRESS: "PLAYER_ADDRESSING", SHOT: "SHOT_TAKEN", BREAK: "BREAK_SHOT", TURN: "TURN_CHANGE", EXT: "EXTENSION", GAME: "GAME_OVER" };
+      pushFeed("TABLE 1", true, names[ev.e] + " @ " + fmtVideoT(ev.t), ev.e === "GAME" || ev.e === "EXT" || ev.e === "BREAK" ? "gold" : void 0);
+      live.lastAnnounced = ev.t;
+    }
+    if (t < live.lastAnnounced) live.lastAnnounced = t;
+  }
+  function fmtVideoT(t) {
+    const m = Math.floor(t / 60), s = Math.floor(t % 60);
+    return m + ":" + String(s).padStart(2, "0");
+  }
+  var ytPlayer = null;
+  var ytReady = false;
+  var ytLoadStarted = false;
+  var YT_ERRORS = {
+    2: ["INVALID VIDEO ID", "YouTube rejected that video ID. Check the URL and LOAD another."],
+    5: ["PLAYER ERROR", "The HTML5 player hit an error. Try reloading, or LOAD another video."],
+    100: ["VIDEO NOT FOUND", "That video is removed or private. LOAD another one."],
+    101: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video."],
+    150: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video."]
+  };
+  window.onYouTubeIframeAPIReady = function() {
+    ytPlayer = new YT.Player("yt-player", {
+      videoId: currentVideoId,
+      playerVars: { rel: 0, modestbranding: 1 },
+      events: {
+        onReady: () => {
+          ytReady = true;
+          if (MODE.current === "youtube") setFeed("PAUSED");
+          pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — video feed connected", "gold");
+        },
+        onStateChange: (e) => {
+          if (MODE.current !== "youtube") return;
+          if (e.data === YT.PlayerState.PLAYING) {
+            hideFallback();
+            setFeed("PLAYING");
+          } else if (e.data === YT.PlayerState.PAUSED) {
+            setFeed("PAUSED");
+            pushFeed("TABLE 1", true, "FEED_HOLD — playback paused");
+          } else if (e.data === YT.PlayerState.BUFFERING) setFeed("BUFFERING");
+          else if (e.data === YT.PlayerState.ENDED) {
+            setFeed("PAUSED");
+            pushFeed("TABLE 1", true, "FEED_ENDED — video finished");
+          } else if (e.data === YT.PlayerState.CUED) {
+            hideFallback();
+            setFeed("PAUSED");
+          }
+        },
+        onError: (e) => {
+          if (MODE.current !== "youtube") return;
+          const [title, detail] = YT_ERRORS[e.data] || ["VIDEO UNAVAILABLE", "The player reported error " + e.data + ". LOAD another video."];
+          setFeed("LOST");
+          showFallback(title, detail);
+          pushFeed("TABLE 1", true, "FEED_LOST — " + title.toLowerCase() + " (yt error " + e.data + ")", "foul");
+        }
+      }
+    });
+  };
+  function loadYT() {
+    ytLoadStarted = true;
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    tag.onerror = () => {
+      if (MODE.current === "youtube") {
+        setFeed("LOST");
+        showFallback("YOUTUBE UNREACHABLE", "The IFrame API could not load.");
+        pushFeed("TABLE 1", true, "FEED_LOST — YouTube unreachable", "foul");
+      }
+    };
+    document.head.appendChild(tag);
+    setTimeout(() => {
+      if (!ytReady && MODE.current === "youtube" && live.feed === "IDLE") {
+        setFeed("LOST");
+        showFallback("YOUTUBE UNREACHABLE", "The IFrame API did not respond.");
+      }
+    }, 8e3);
+  }
+  var urlInput = document.getElementById("video-url");
+  var btnEditUrl = document.getElementById("btn-edit-url");
+  var btnLoadUrl = document.getElementById("btn-load-url");
+  urlInput.value = "https://youtu.be/" + currentVideoId;
+  function parseYouTubeId(raw) {
+    const s = raw.trim();
+    if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+    const m = s.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+  btnEditUrl.addEventListener("click", () => {
+    urlInput.disabled = !urlInput.disabled;
+    btnLoadUrl.disabled = urlInput.disabled;
+    btnEditUrl.classList.toggle("active", !urlInput.disabled);
+    btnEditUrl.textContent = urlInput.disabled ? "EDIT" : "LOCK";
+    if (!urlInput.disabled) {
+      urlInput.focus();
+      urlInput.select();
+    }
+  });
+  function loadVideoFromInput() {
+    const id = parseYouTubeId(urlInput.value);
+    if (!id) {
+      urlInput.classList.add("bad");
+      setTimeout(() => urlInput.classList.remove("bad"), 1200);
+      return;
+    }
+    currentVideoId = id;
+    try {
+      localStorage.setItem("pw01-video-id", id);
+    } catch (e) {
+    }
+    urlInput.value = "https://youtu.be/" + id;
+    urlInput.disabled = true;
+    btnLoadUrl.disabled = true;
+    btnEditUrl.classList.remove("active");
+    btnEditUrl.textContent = "EDIT";
+    live.lastAnnounced = -1;
+    loadDraft();
+    saveDraft();
+    hideFallback();
+    pushFeed("TABLE 1", true, "VIDEO_SOURCE_CHANGED — " + id, "gold");
+    if (ytReady && ytPlayer.cueVideoById) ytPlayer.cueVideoById(id);
+    else showFallback("PLAYER UNAVAILABLE", "The YouTube player never loaded, so the new source can't play. Reload the page to retry.");
+  }
+  btnLoadUrl.addEventListener("click", loadVideoFromInput);
+  urlInput.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") loadVideoFromInput();
+  });
+  var KEYMAP = { a: "ADDRESS", s: "SHOT", b: "BREAK", t: "TURN", e: "EXT", g: "GAME" };
+  document.addEventListener("keydown", (ev) => {
+    if (ev.target === urlInput || ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT") return;
+    if (MODE.current !== "youtube" || !live.annotate || !ytReady) return;
+    const k = ev.key.toLowerCase();
+    if (k === "z") {
+      const undone = live.draft.pop();
+      if (undone) {
+        saveDraft();
+        pushFeed("TABLE 1", true, "ANNOTATE — undid " + undone.e + " @ " + fmtVideoT(undone.t));
+      }
+      return;
+    }
+    if (!KEYMAP[k]) return;
+    if (currentVideoId === LIVE_TRACK.videoId && LIVE_TRACK.events.length) return;
+    const t = Math.round(ytPlayer.getCurrentTime() * 10) / 10;
+    live.draft.push({ t, e: KEYMAP[k] });
+    live.draft.sort((x, y) => x.t - y.t);
+    live.lastAnnounced = -1;
+    saveDraft();
+    pushFeed("TABLE 1", true, "ANNOTATE — " + KEYMAP[k] + " @ " + fmtVideoT(t), "gold");
+  });
+  document.getElementById("btn-annotate").addEventListener("click", (e) => {
+    live.annotate = !live.annotate;
+    e.target.classList.toggle("active", live.annotate);
+    document.getElementById("annot-help").classList.toggle("show", live.annotate);
+  });
+  document.getElementById("btn-export").addEventListener("click", async (e) => {
+    const json = JSON.stringify(trackEvents());
+    try {
+      await navigator.clipboard.writeText(json);
+      e.target.textContent = "COPIED ✓";
+    } catch (err) {
+      window.prompt("Copy the track JSON:", json);
+    }
+    setTimeout(() => {
+      e.target.textContent = "EXPORT TRACK";
+    }, 1500);
+  });
+  var tables = Array.from({ length: 5 }, (_, i) => new Table(i));
+  var tablesEl = document.getElementById("tables");
+  var CIRC = 2 * Math.PI * 53;
+  function cardInner(idSuffix, raceLabel, liveLabel) {
+    return `
     <div class="tc-head">
       <div class="tno">${liveLabel ? 'TABLE 1 <span class="live-tag">· ' + liveLabel + "</span>" : "TABLE " + idSuffix}</div>
       <div class="race num">${raceLabel}</div>
@@ -1809,194 +2285,223 @@ function cardInner(idSuffix, raceLabel, liveLabel) {
       </div>
     </div>
     <div class="players" id="players-${idSuffix}"></div>`;
-}
-function buildSimCards() {
-  tablesEl.innerHTML = tables.map(t =>
-    `<div class="table-card" id="card-${t.no}">${cardInner(t.no, "RACE TO " + t.raceTo, null)}</div>`).join("");
-}
-function buildLiveCard() {
-  const label = MODE.current === "camera" ? "LIVE CAMERA" : MODE.current === "file" ? "LIVE FILE" : "LIVE FEED";
-  document.getElementById("live-card").innerHTML = cardInner("live", MODE.current === "youtube" ? "RACE TO " + LIVE_TRACK.raceTo : "VISION MVP", label);
-}
-
-function paintCard(idSuffix, cardEl, view) {
-  const badge = document.getElementById("badge-" + idSuffix);
-  if (!badge) return;
-  document.getElementById("cv-" + idSuffix).textContent = view.lastEvent;
-  const stype = document.getElementById("stype-" + idSuffix);
-  stype.textContent = view.shotTypeLabel;
-  stype.className = "shot-type" + (view.shotTypeGold ? " break60" : "");
-  badge.className = "state-badge " + view.stateCls;
-  badge.textContent = view.stateTxt;
-  const ring = document.getElementById("ring-" + idSuffix);
-  ring.setAttribute("stroke", view.ringColor);
-  ring.style.strokeDashoffset = view.ringOffset;
-  document.getElementById("secs-" + idSuffix).textContent = view.secs;
-  if (cardEl) cardEl.className = cardEl.className.replace(/ ?state-\w+/g, "") + (view.cardCls ? " " + view.cardCls : "");
-  document.getElementById("players-" + idSuffix).innerHTML = view.players.map((p, i) => `
+  }
+  function buildSimCards() {
+    tablesEl.innerHTML = tables.map((t) => `<div class="table-card" id="card-${t.no}">${cardInner(t.no, "RACE TO " + t.raceTo, null)}</div>`).join("");
+  }
+  function buildLiveCard() {
+    const label = MODE.current === "camera" ? "LIVE CAMERA" : MODE.current === "file" ? "LIVE FILE" : "LIVE FEED";
+    document.getElementById("live-card").innerHTML = cardInner("live", MODE.current === "youtube" ? "RACE TO " + LIVE_TRACK.raceTo : "VISION MVP", label);
+  }
+  function paintCard(idSuffix, cardEl, view) {
+    const badge = document.getElementById("badge-" + idSuffix);
+    if (!badge) return;
+    document.getElementById("cv-" + idSuffix).textContent = view.lastEvent;
+    const stype = document.getElementById("stype-" + idSuffix);
+    stype.textContent = view.shotTypeLabel;
+    stype.className = "shot-type" + (view.shotTypeGold ? " break60" : "");
+    badge.className = "state-badge " + view.stateCls;
+    badge.textContent = view.stateTxt;
+    const ring = document.getElementById("ring-" + idSuffix);
+    ring.setAttribute("stroke", view.ringColor);
+    ring.style.strokeDashoffset = view.ringOffset;
+    document.getElementById("secs-" + idSuffix).textContent = view.secs;
+    if (cardEl) cardEl.className = cardEl.className.replace(/ ?state-\w+/g, "") + (view.cardCls ? " " + view.cardCls : "");
+    document.getElementById("players-" + idSuffix).innerHTML = view.players.map((p, i) => `
     <div class="player ${i === view.turn && view.showTurn ? "at-table" : ""}">
       <span class="marker" aria-hidden="true"></span>
       <span class="pname">${p.name}</span>
       <span class="ext ${p.ext ? "avail" : "used"}">${p.ext ? "EXT ●" : "EXT USED"}</span>
       <span class="score num">${p.score}</span>
     </div>`).join("");
-}
-
-function viewFromState(phase, clock, limit, afterBreak, nextIsBreak, players, turn, lastEvent, extraIdle) {
-  const v = {
-    players, turn, lastEvent,
-    showTurn: phase !== "MATCH_OVER",
-    shotTypeLabel: (afterBreak && phase !== "ADDRESSING") || (phase === "ADDRESSING" && limit === RULES.afterBreak)
-      ? "60S — AFTER BREAK" : (nextIsBreak ? "BREAK SHOT" : limit + "S SHOT"),
-    shotTypeGold: limit === RULES.afterBreak && phase === "ADDRESSING",
-    stateCls: "idle", stateTxt: extraIdle || "RACKING",
-    ringColor: "rgba(126,184,204,0.35)", ringOffset: 0, secs: "–", cardCls: "",
-  };
-  const s = Math.ceil(clock);
-  if (phase === "ADDRESSING") {
-    if (clock <= 5)       { v.stateCls = "critical"; v.stateTxt = "CLOCK CRITICAL"; v.ringColor = "#ff4444"; v.cardCls = "state-critical"; }
-    else if (clock <= 10) { v.stateCls = "warning";  v.stateTxt = "CLOCK LOW";      v.ringColor = "#f5a623"; v.cardCls = "state-running"; }
-    else                  { v.stateCls = "running";  v.stateTxt = "CLOCK RUNNING";  v.ringColor = "#00d4ff"; v.cardCls = "state-running"; }
-    v.ringOffset = CIRC * (1 - Math.max(0, clock) / limit);
-    v.secs = s;
-  } else if (phase === "GRACE") {
-    v.stateCls = "held"; v.stateTxt = "HELD — AWAITING ADDRESS";
-    v.secs = afterBreak ? RULES.afterBreak : RULES.standardShot;
-  } else if (phase === "EXPIRED") {
-    v.stateCls = "expired"; v.stateTxt = "SHOT-CLOCK FOUL"; v.ringColor = "#ff4444"; v.cardCls = "state-expired";
-    v.ringOffset = CIRC; v.secs = 0;
-  } else if (phase === "MATCH_OVER") {
-    v.stateTxt = "MATCH OVER";
-  } else if (phase === "RACKING") {
-    v.secs = nextIsBreak ? "–" : limit;
   }
-  return v;
-}
-
-function renderSim(t) {
-  const v = viewFromState(t.phase, t.clock, t.limit, t.afterBreak, t.nextIsBreak, t.players, t.turn, t.lastEvent);
-  paintCard(t.no, document.getElementById("card-" + t.no), v);
-}
-
-const visionPlayers = [{ name: "Player 1", score: 0, ext: true }, { name: "Player 2", score: 0, ext: true }];
-vision.turn = 0;
-document.getElementById("vh-player").addEventListener("click", () => {
-  vision.turn = 1 - vision.turn;
-  pushFeed("TABLE 1", true, "TURN_CHANGE — " + visionPlayers[vision.turn].name + " at table (manual)");
-});
-function isFrameFullscreen() {
-  return document.fullscreenElement === frameEl || frameEl.classList.contains("fake-full");
-}
-function updateHud(view, clockSecs) {
-  const hud = document.getElementById("video-hud");
-  const show = isFrameFullscreen();
-  hud.hidden = !show;
-  const tools = document.getElementById("fs-tools");
-  tools.hidden = !show || MODE.current === "youtube";
-  if (!show) return;
-  syncRoiBtns();
-  const secsEl = document.getElementById("vh-secs");
-  secsEl.textContent = clockSecs;
-  secsEl.style.color = view.stateCls === "critical" || view.stateCls === "expired" ? "#ff4444"
-    : view.stateCls === "warning" ? "#f5a623"
-    : view.stateCls === "running" ? "#00d4ff" : "#7eb8cc";
-  document.getElementById("vh-player").textContent = view.players[view.turn] ? view.players[view.turn].name.toUpperCase() : "—";
-  document.getElementById("vh-state").textContent = view.stateTxt;
-}
-function renderLive(now) {
-  let v;
-  if (MODE.current === "youtube") {
-    const t = live.videoT;
-    const s = replayLive(t);
-    if (live.feed === "LOST") {
-      v = viewFromState("AWAITING", 0, s.limit, false, false, s.players, s.turn, "FEED_LOST", "FEED LOST");
-      v.stateCls = "expired"; v.stateTxt = "FEED LOST";
-    } else if (!trackEvents().length) {
-      v = viewFromState("AWAITING", 0, s.limit, false, false, s.players, s.turn,
-        "AWAITING CV TRACK — annotate or run the pipeline", "AWAITING CV TRACK");
-    } else {
-      const phase = s.phase === "AWAITING" ? "RACKING" : s.phase;
-      v = viewFromState(phase, s.clock, s.limit, s.afterBreak, s.nextIsBreak, s.players, s.turn, s.lastEvent);
-      if (live.feed !== "PLAYING" && phase === "ADDRESSING") {
-        v.stateCls = "held"; v.stateTxt = "CLOCK HELD — FEED " + live.feed; v.cardCls = "";
-      }
-    }
-    document.getElementById("video-time").textContent = ytReady ? "VIDEO " + fmtVideoT(t) : "--:--";
-  } else {
-    visionPlayers[0].ext = !vision.extUsed;
-    const clock = vision.clockRemaining(now);
-    const map = {
-      OFF:        ["AWAITING", "SOURCE OFF"],
-      SEARCHING:  ["AWAITING", "SEARCHING FOR TABLE"],
-      READY:      ["GRACE", null],
-      ADDRESSING: ["ADDRESSING", null],
-      ROLLING:    ["GRACE", null],
-      EXPIRED:    ["EXPIRED", null],
+  function viewFromState(phase, clock, limit, afterBreak, nextIsBreak, players, turn, lastEvent, extraIdle) {
+    const v = {
+      players,
+      turn,
+      lastEvent,
+      showTurn: phase !== "MATCH_OVER",
+      shotTypeLabel: afterBreak && phase !== "ADDRESSING" || phase === "ADDRESSING" && limit === RULES.afterBreak ? "60S — AFTER BREAK" : nextIsBreak ? "BREAK SHOT" : limit + "S SHOT",
+      shotTypeGold: limit === RULES.afterBreak && phase === "ADDRESSING",
+      stateCls: "idle",
+      stateTxt: extraIdle || "RACKING",
+      ringColor: "rgba(126,184,204,0.35)",
+      ringOffset: 0,
+      secs: "–",
+      cardCls: ""
     };
-    const [phase, idleTxt] = map[vision.state] || ["AWAITING", vision.state];
-    v = viewFromState(phase, clock, vision.clockLimit || cfg.clockSecs, false, false, visionPlayers, vision.turn, vision.lastEvent, idleTxt);
-    if (vision.state === "ROLLING") { v.stateTxt = "BALLS ROLLING"; }
-    if (vision.state === "READY") { v.secs = cfg.clockSecs; }
-    const vd = els.cvVideo;
-    document.getElementById("video-time").textContent =
-      MODE.current === "file" && vd.duration ? "VIDEO " + fmtVideoT(vd.currentTime) :
-      MODE.current === "camera" && cameraStream ? "CAMERA LIVE" : "--:--";
+    const s = Math.ceil(clock);
+    if (phase === "ADDRESSING") {
+      if (clock <= 5) {
+        v.stateCls = "critical";
+        v.stateTxt = "CLOCK CRITICAL";
+        v.ringColor = "#ff4444";
+        v.cardCls = "state-critical";
+      } else if (clock <= 10) {
+        v.stateCls = "warning";
+        v.stateTxt = "CLOCK LOW";
+        v.ringColor = "#f5a623";
+        v.cardCls = "state-running";
+      } else {
+        v.stateCls = "running";
+        v.stateTxt = "CLOCK RUNNING";
+        v.ringColor = "#00d4ff";
+        v.cardCls = "state-running";
+      }
+      v.ringOffset = CIRC * (1 - Math.max(0, clock) / limit);
+      v.secs = s;
+    } else if (phase === "GRACE") {
+      v.stateCls = "held";
+      v.stateTxt = "HELD — AWAITING ADDRESS";
+      v.secs = afterBreak ? RULES.afterBreak : RULES.standardShot;
+    } else if (phase === "EXPIRED") {
+      v.stateCls = "expired";
+      v.stateTxt = "SHOT-CLOCK FOUL";
+      v.ringColor = "#ff4444";
+      v.cardCls = "state-expired";
+      v.ringOffset = CIRC;
+      v.secs = 0;
+    } else if (phase === "MATCH_OVER") {
+      v.stateTxt = "MATCH OVER";
+    } else if (phase === "RACKING") {
+      v.secs = nextIsBreak ? "–" : limit;
+    }
+    return v;
   }
-  paintCard("live", document.getElementById("live-card"), v);
-  updateHud(v, v.secs);
-}
-
-function renderStats() {
-  const liveActive = MODE.current === "youtube"
-    ? (live.feed !== "LOST" && live.feed !== "IDLE" ? 1 : 0)
-    : (vision.running && vision.table ? 1 : 0);
-  const liveRunning = MODE.current === "youtube"
-    ? (live.feed === "PLAYING" && replayLive(live.videoT).phase === "ADDRESSING" ? 1 : 0)
-    : (vision.state === "ADDRESSING" ? 1 : 0);
-  document.getElementById("st-tables").textContent = tables.filter(t => t.phase !== "MATCH_OVER").length + liveActive;
-  document.getElementById("st-running").textContent = tables.filter(t => t.phase === "ADDRESSING").length + liveRunning;
-  document.getElementById("st-fouls").textContent = fouls;
-  document.getElementById("st-exts").textContent = extsUsed;
-  const avg = shotTimes.length ? (shotTimes.reduce((a, b) => a + b, 0) / shotTimes.length) : null;
-  document.getElementById("st-avg").innerHTML = (avg ? avg.toFixed(1) : "—") + "<small> S</small>";
-}
-
-/* ---------------- main loop ---------------- */
-const sim = { speed: 1, paused: false };
-let last = performance.now(), lastLiveLabel = "";
-function loop(now) {
-  const dt = Math.min(0.25, (now - last) / 1000) * sim.speed;
-  last = now;
-  if (!sim.paused) { tables.forEach(t => t.tick(dt)); tables.forEach(renderSim); }
-  if (MODE.current === "youtube" && ytReady && ytPlayer.getCurrentTime) {
-    live.videoT = ytPlayer.getCurrentTime() || 0;
-    if (live.feed === "PLAYING") announceYt(live.videoT);
+  function renderSim(t) {
+    const v = viewFromState(t.phase, t.clock, t.limit, t.afterBreak, t.nextIsBreak, t.players, t.turn, t.lastEvent);
+    paintCard(t.no, document.getElementById("card-" + t.no), v);
   }
-  if (MODE.current !== "youtube") vision.tick(now);
-  if (lastLiveLabel !== MODE.current) { buildLiveCard(); lastLiveLabel = MODE.current; }
-  renderLive(now);
-  renderStats();
-  requestAnimationFrame(loop);
-}
-
-document.querySelectorAll("[data-speed]").forEach(btn => {
-  btn.addEventListener("click", () => {
-    sim.speed = Number(btn.dataset.speed);
-    document.querySelectorAll("[data-speed]").forEach(b => b.classList.toggle("active", b === btn));
+  var visionPlayers = [{ name: "Player 1", score: 0, ext: true }, { name: "Player 2", score: 0, ext: true }];
+  document.getElementById("vh-player").addEventListener("click", () => {
+    watcher.dispatch({ type: "TURN_SET", origin: "admin" });
   });
-});
-document.getElementById("btn-pause").addEventListener("click", e => {
-  sim.paused = !sim.paused;
-  e.target.textContent = sim.paused ? "RESUME SIM" : "PAUSE SIM";
-  e.target.classList.toggle("active", sim.paused);
-});
-
-buildSimCards();
-buildLiveCard();
-saveDraft();
-setMode("camera");
-tables.forEach(t => t.emit("NEW_MATCH — " + t.players[0].name + " vs " + t.players[1].name));
-requestAnimationFrame(loop);
+  function isFrameFullscreen() {
+    return document.fullscreenElement === frameEl || frameEl.classList.contains("fake-full");
+  }
+  function updateHud(view, clockSecs) {
+    const hud = document.getElementById("video-hud");
+    const show = isFrameFullscreen();
+    hud.hidden = !show;
+    const tools = document.getElementById("fs-tools");
+    tools.hidden = !show || MODE.current === "youtube";
+    if (!show) return;
+    syncRoiBtns();
+    const secsEl = document.getElementById("vh-secs");
+    secsEl.textContent = clockSecs;
+    secsEl.style.color = view.stateCls === "critical" || view.stateCls === "expired" ? "#ff4444" : view.stateCls === "warning" ? "#f5a623" : view.stateCls === "running" ? "#00d4ff" : "#7eb8cc";
+    document.getElementById("vh-player").textContent = view.players[view.turn] ? view.players[view.turn].name.toUpperCase() : "—";
+    document.getElementById("vh-state").textContent = view.stateTxt;
+  }
+  function renderLive(now) {
+    let v;
+    if (MODE.current === "youtube") {
+      const t = live.videoT;
+      const s = replayLive(t);
+      if (live.feed === "LOST") {
+        v = viewFromState("AWAITING", 0, s.limit, false, false, s.players, s.turn, "FEED_LOST", "FEED LOST");
+        v.stateCls = "expired";
+        v.stateTxt = "FEED LOST";
+      } else if (!trackEvents().length) {
+        v = viewFromState(
+          "AWAITING",
+          0,
+          s.limit,
+          false,
+          false,
+          s.players,
+          s.turn,
+          "AWAITING CV TRACK — annotate or run the pipeline",
+          "AWAITING CV TRACK"
+        );
+      } else {
+        const phase = s.phase === "AWAITING" ? "RACKING" : s.phase;
+        v = viewFromState(phase, s.clock, s.limit, s.afterBreak, s.nextIsBreak, s.players, s.turn, s.lastEvent);
+        if (live.feed !== "PLAYING" && phase === "ADDRESSING") {
+          v.stateCls = "held";
+          v.stateTxt = "CLOCK HELD — FEED " + live.feed;
+          v.cardCls = "";
+        }
+      }
+      document.getElementById("video-time").textContent = ytReady ? "VIDEO " + fmtVideoT(t) : "--:--";
+    } else {
+      visionPlayers[0].ext = !vision.extUsed;
+      const clock = vision.clockRemaining(now);
+      const map = {
+        OFF: ["AWAITING", "SOURCE OFF"],
+        SEARCHING: ["AWAITING", "SEARCHING FOR TABLE"],
+        READY: ["GRACE", null],
+        ADDRESSING: ["ADDRESSING", null],
+        ROLLING: ["GRACE", null],
+        EXPIRED: ["EXPIRED", null]
+      };
+      const [phase, idleTxt] = map[vision.state] || ["AWAITING", vision.state];
+      v = viewFromState(phase, clock, vision.clockLimit || cfg.clockSecs, false, false, visionPlayers, vision.turn, vision.lastEvent, idleTxt);
+      if (vision.state === "ROLLING") {
+        v.stateTxt = "BALLS ROLLING";
+      }
+      if (vision.state === "READY") {
+        v.secs = cfg.clockSecs;
+      }
+      const vd = els.cvVideo;
+      document.getElementById("video-time").textContent = MODE.current === "file" && vd.duration ? "VIDEO " + fmtVideoT(vd.currentTime) : MODE.current === "camera" && cameraStream ? "CAMERA LIVE" : "--:--";
+    }
+    paintCard("live", document.getElementById("live-card"), v);
+    updateHud(v, v.secs);
+  }
+  function renderStats() {
+    const liveActive = MODE.current === "youtube" ? live.feed !== "LOST" && live.feed !== "IDLE" ? 1 : 0 : vision.running && vision.table ? 1 : 0;
+    const liveRunning = MODE.current === "youtube" ? live.feed === "PLAYING" && replayLive(live.videoT).phase === "ADDRESSING" ? 1 : 0 : vision.state === "ADDRESSING" ? 1 : 0;
+    document.getElementById("st-tables").textContent = tables.filter((t) => t.phase !== "MATCH_OVER").length + liveActive;
+    document.getElementById("st-running").textContent = tables.filter((t) => t.phase === "ADDRESSING").length + liveRunning;
+    document.getElementById("st-fouls").textContent = fouls;
+    document.getElementById("st-exts").textContent = extsUsed;
+    const avg = shotTimes.length ? shotTimes.reduce((a, b) => a + b, 0) / shotTimes.length : null;
+    document.getElementById("st-avg").innerHTML = (avg ? avg.toFixed(1) : "—") + "<small> S</small>";
+  }
+  var sim = { speed: 1, paused: false };
+  var last = performance.now();
+  var lastLiveLabel = "";
+  function loop(now) {
+    const dt = Math.min(0.25, (now - last) / 1e3) * sim.speed;
+    last = now;
+    if (!sim.paused) {
+      tables.forEach((t) => t.tick(dt));
+      tables.forEach(renderSim);
+    }
+    if (MODE.current === "youtube" && ytReady && ytPlayer.getCurrentTime) {
+      live.videoT = ytPlayer.getCurrentTime() || 0;
+      if (live.feed === "PLAYING") announceYt(live.videoT);
+    }
+    if (MODE.current !== "youtube") vision.tick(now);
+    if (lastLiveLabel !== MODE.current) {
+      buildLiveCard();
+      lastLiveLabel = MODE.current;
+    }
+    renderLive(now);
+    renderStats();
+    requestAnimationFrame(loop);
+  }
+  document.querySelectorAll("[data-speed]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      sim.speed = Number(btn.dataset.speed);
+      document.querySelectorAll("[data-speed]").forEach((b) => b.classList.toggle("active", b === btn));
+    });
+  });
+  document.getElementById("btn-pause").addEventListener("click", (e) => {
+    sim.paused = !sim.paused;
+    e.target.textContent = sim.paused ? "RESUME SIM" : "PAUSE SIM";
+    e.target.classList.toggle("active", sim.paused);
+  });
+  buildSimCards();
+  buildLiveCard();
+  saveDraft();
+  syncTuning();
+  Object.assign(window, { vision, cfg, watcher, engine });
+  setMode("camera");
+  tables.forEach((t) => t.emit("NEW_MATCH — " + t.players[0].name + " vs " + t.players[1].name));
+  requestAnimationFrame(loop);
+})();
 </script>
 </body>
 </html>
