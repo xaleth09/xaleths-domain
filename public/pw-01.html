@@ -337,7 +337,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 18 · ENGINE:pool-watcher</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 19 · ENGINE:pool-watcher+ml</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -464,6 +464,14 @@
               <option value="2">ON — 2 fps</option>
             </select>
           </div>
+          <div class="vp-field"><label>ENGINE</label>
+            <div style="display:flex;gap:4px;">
+              <button class="btn active" id="btn-eng-classical" style="flex:1;">CLASSICAL</button>
+              <button class="btn" id="btn-eng-ml" style="flex:1;">ML HYBRID</button>
+            </div>
+          </div>
+          <div class="vp-field"><label>ML MODEL (ONNX URL)</label>
+            <input class="num-input" id="cfg-model-url" type="text" value="pw-01-assets/yolov8n.onnx" spellcheck="false" style="width:100%;"></div>
         </div>
         <div class="vp-meters">
           <div class="meter"><div class="k">MEASURED FPS</div><div class="v num" id="m-fps">0</div></div>
@@ -473,6 +481,7 @@
           <div class="meter"><div class="k">MOTION ENERGY</div><div class="v num" id="m-motion">0</div><div class="bar"><i id="m-motion-bar"></i></div></div>
           <div class="meter"><div class="k">TABLE LOCK</div><div class="v num" id="m-table">—</div></div>
           <div class="meter"><div class="k">BALLS / PERSONS</div><div class="v num" id="m-objs">0 / —</div></div>
+          <div class="meter"><div class="k">ML DETECT</div><div class="v num" id="m-ml">OFF</div></div>
         </div>
         <div class="vp-actions">
           <button class="btn" id="btn-roi">SET TABLE AREA</button>
@@ -531,7 +540,7 @@
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-  // packages/core/src/watcher.ts
+  // ../../packages/core/src/watcher.ts
   var WNT_9BALL = {
     name: "wnt-9ball",
     shotSeconds: 30,
@@ -807,7 +816,7 @@
     }
   };
 
-  // packages/engine-classical/src/index.ts
+  // ../../packages/engine-classical/src/index.ts
   var DEFAULT_CONFIG = {
     res: 240,
     diffThreshold: 24,
@@ -1154,14 +1163,343 @@
     }
   };
 
-  // apps/admin-dashboard/src/main.js
+  // ../../packages/engine-ml/src/index.ts
+  var COCO_CLASS_ROLES = {
+    0: { role: "person" },
+    32: { role: "ball" }
+    // COCO "sports ball" — no identity; fine-tune adds ballId
+  };
+  var DEFAULT_DETECTOR_CONFIG = {
+    modelUrl: "pw-01-assets/yolov8n.onnx",
+    // ort.wasm.min.js is the CPU-only bundle: its wasm binary is 14MB (the
+    // WebGPU bundle's is 27MB, over Cloudflare's 25MB per-asset limit)
+    ortScriptUrl: "pw-01-assets/ort/ort.wasm.min.js",
+    ortWasmDir: "pw-01-assets/ort/",
+    inputSize: 640,
+    confThreshold: 0.35,
+    iouThreshold: 0.45,
+    classRoles: COCO_CLASS_ROLES
+  };
+  var MlDetector = class {
+    constructor(cfg2) {
+      __publicField(this, "name", "yolo-onnx");
+      __publicField(this, "cfg");
+      __publicField(this, "status", "idle");
+      __publicField(this, "lastError", null);
+      __publicField(this, "session", null);
+      __publicField(this, "canvas", null);
+      __publicField(this, "ctx", null);
+      __publicField(this, "loadPromise", null);
+      this.cfg = { ...DEFAULT_DETECTOR_CONFIG, ...cfg2 };
+    }
+    /** Idempotent; safe to call eagerly (e.g. on engine switch) and await later. */
+    load() {
+      if (!this.loadPromise) {
+        this.status = "loading";
+        this.loadPromise = this.doLoad().then(
+          () => {
+            this.status = "ready";
+          },
+          (err) => {
+            this.status = "error";
+            this.lastError = err && err.message ? err.message : String(err);
+            this.loadPromise = null;
+            throw err;
+          }
+        );
+      }
+      return this.loadPromise;
+    }
+    async doLoad() {
+      if (!globalThis.ort) await injectScript(this.cfg.ortScriptUrl);
+      const ort = globalThis.ort;
+      if (!ort) throw new Error("onnxruntime-web failed to attach a global");
+      ort.env.wasm.wasmPaths = new URL(this.cfg.ortWasmDir, globalThis.location?.href ?? "http://localhost/").href;
+      ort.env.wasm.numThreads = 1;
+      ort.env.wasm.proxy = true;
+      this.session = await ort.InferenceSession.create(this.cfg.modelUrl, {
+        executionProviders: ["wasm"]
+      });
+      const S = this.cfg.inputSize;
+      this.canvas = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(S, S) : (() => {
+        const c = document.createElement("canvas");
+        c.width = S;
+        c.height = S;
+        return c;
+      })();
+      this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
+    }
+    /**
+     * Detect on one frame. `roi` (normalized to the source) crops BEFORE
+     * inference — the model sees the crop at full input resolution, which is
+     * the same digital-zoom trick the classical engine uses. Returned boxes
+     * are normalized to the FULL source frame either way.
+     */
+    async detect(image, srcW, srcH, roi) {
+      if (!this.session || !this.ctx || !globalThis.ort) throw new Error("detector not loaded");
+      const t0 = performance.now();
+      const S = this.cfg.inputSize;
+      const rx = roi ? roi.x * srcW : 0, ry = roi ? roi.y * srcH : 0;
+      const rw = roi ? roi.w * srcW : srcW, rh = roi ? roi.h * srcH : srcH;
+      const scale = Math.min(S / rw, S / rh);
+      const dw = rw * scale, dh = rh * scale;
+      const padX = (S - dw) / 2, padY = (S - dh) / 2;
+      const ctx = this.ctx;
+      ctx.fillStyle = "rgb(114,114,114)";
+      ctx.fillRect(0, 0, S, S);
+      ctx.drawImage(image, rx, ry, rw, rh, padX, padY, dw, dh);
+      const rgba = ctx.getImageData(0, 0, S, S).data;
+      const n = S * S;
+      const input = new Float32Array(3 * n);
+      for (let i = 0; i < n; i++) {
+        input[i] = rgba[i * 4] / 255;
+        input[n + i] = rgba[i * 4 + 1] / 255;
+        input[2 * n + i] = rgba[i * 4 + 2] / 255;
+      }
+      const ort = globalThis.ort;
+      const feeds = {};
+      feeds[this.session.inputNames[0]] = new ort.Tensor("float32", input, [1, 3, S, S]);
+      const out = await this.session.run(feeds);
+      const t = out[this.session.outputNames[0]];
+      const detections = this.decode(t, scale, padX, padY, rx, ry, srcW, srcH, ctx);
+      return { detections, ms: performance.now() - t0, backend: "wasm" };
+    }
+    /** YOLOv8/11 layout: dims [1, 4+numClasses, N]; boxes are cx,cy,w,h in input px. */
+    decode(t, scale, padX, padY, rx, ry, srcW, srcH, ctx) {
+      const dims = t.dims;
+      if (dims.length !== 3) throw new Error("unexpected output rank " + dims.length);
+      const chFirst = dims[1] < dims[2];
+      const C = chFirst ? dims[1] : dims[2];
+      const N = chFirst ? dims[2] : dims[1];
+      const numClasses = C - 4;
+      const d = t.data;
+      const at = (ch, i) => chFirst ? d[ch * N + i] : d[i * C + ch];
+      const cand = [];
+      for (let i = 0; i < N; i++) {
+        let best = 0, bestC = -1;
+        for (let k = 0; k < numClasses; k++) {
+          const s = at(4 + k, i);
+          if (s > best) {
+            best = s;
+            bestC = k;
+          }
+        }
+        if (best < this.cfg.confThreshold) continue;
+        const role = this.cfg.classRoles[bestC];
+        if (!role) continue;
+        const cx = at(0, i), cy = at(1, i), w = at(2, i), h = at(3, i);
+        const x = (cx - w / 2 - padX) / scale + rx;
+        const y = (cy - h / 2 - padY) / scale + ry;
+        cand.push({
+          role: role.role,
+          ballId: role.ballId,
+          confidence: best,
+          box: {
+            x: clamp01(x / srcW),
+            y: clamp01(y / srcH),
+            w: Math.min(1, w / scale / srcW),
+            h: Math.min(1, h / scale / srcH)
+          },
+          lx: cx,
+          ly: cy
+          // letterbox-space center, for color sampling
+        });
+      }
+      const kept = nms(cand, this.cfg.iouThreshold);
+      for (const k of kept) {
+        if (k.role === "ball") {
+          const px = ctx.getImageData(Math.round(clampN(k.lx, 0, this.cfg.inputSize - 1)), Math.round(clampN(k.ly, 0, this.cfg.inputSize - 1)), 1, 1).data;
+          k.color = { r: px[0], g: px[1], b: px[2] };
+        }
+        delete k.lx;
+        delete k.ly;
+      }
+      return kept;
+    }
+  };
+  function clamp01(v) {
+    return Math.max(0, Math.min(1, v));
+  }
+  function clampN(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+  function iou(a, b) {
+    const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+    const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+    const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+    return inter / (a.w * a.h + b.w * b.h - inter || 1);
+  }
+  function nms(cand, thr) {
+    const out = [];
+    for (const role of ["ball", "person", "cue_stick"]) {
+      const group = cand.filter((c) => c.role === role).sort((a, b) => b.confidence - a.confidence);
+      for (const c of group) {
+        if (out.every((o) => o.role !== role || iou(o.box, c.box) < thr)) out.push(c);
+      }
+    }
+    return out;
+  }
+  function injectScript(src) {
+    return new Promise((res, rej) => {
+      const doc = globalThis.document;
+      if (!doc) return rej(new Error("no document — detector needs a browser context"));
+      const existing = doc.querySelector('script[src="' + src + '"]');
+      if (existing) return res();
+      const s = doc.createElement("script");
+      s.src = src;
+      s.onload = () => res();
+      s.onerror = () => rej(new Error("failed to load " + src));
+      doc.head.appendChild(s);
+    });
+  }
+  var DEFAULT_HYBRID_CONFIG = {
+    intervalMs: 350,
+    staleMs: 3e3,
+    matchReach: 2
+  };
+  var HybridEngine = class {
+    constructor(base, detector, cfg2) {
+      __publicField(this, "name");
+      __publicField(this, "cfg");
+      __publicField(this, "base");
+      __publicField(this, "detector");
+      __publicField(this, "roi", null);
+      __publicField(this, "busy", false);
+      __publicField(this, "last", null);
+      __publicField(this, "lastAt", 0);
+      __publicField(this, "lastMs", 0);
+      __publicField(this, "prevPersons", []);
+      this.base = base;
+      this.detector = detector;
+      this.cfg = { ...DEFAULT_HYBRID_CONFIG, ...cfg2 };
+      this.name = "hybrid(" + base.name + "+" + detector.name + ")";
+    }
+    get stats() {
+      return {
+        status: this.detector.status,
+        ms: this.lastMs,
+        ageMs: this.last ? performance.now() - this.lastAt : -1,
+        error: this.detector.lastError
+      };
+    }
+    setRoi(roi) {
+      this.roi = roi;
+      this.base.setRoi(roi);
+      this.last = null;
+    }
+    reset() {
+      this.base.reset();
+      this.last = null;
+      this.prevPersons = [];
+    }
+    /** Legacy dashboard surface (mirrors ClassicalEngine.resetDetection). */
+    resetDetection() {
+      const b = this.base;
+      if (b.resetDetection) b.resetDetection();
+      else this.base.reset();
+      this.last = null;
+    }
+    observe(frame) {
+      const baseObs = this.base.observe(frame);
+      const now = performance.now();
+      const interval = Math.max(this.cfg.intervalMs, this.lastMs * 1.5);
+      if (this.detector.status === "ready" && !this.busy && now - this.lastAt >= interval && frame.image && frame.width && frame.height) {
+        this.busy = true;
+        const roi = this.roi;
+        this.detector.detect(frame.image, frame.width, frame.height, roi).then((r) => {
+          this.last = r;
+          this.lastAt = performance.now();
+          this.lastMs = r.ms;
+        }).catch(() => {
+        }).finally(() => {
+          this.busy = false;
+        });
+      } else if (this.detector.status === "idle") {
+        this.detector.load().catch(() => {
+        });
+      }
+      if (!this.last || now - this.lastAt > this.cfg.staleMs) return baseObs;
+      return this.merge(baseObs, this.last.detections);
+    }
+    /**
+     * Merge policy: the detector is the authority on WHAT things are; the base
+     * engine is the authority on WHETHER they are moving. Detector balls
+     * replace base balls (that is the point — the base's false positives
+     * disappear); each inherits motion flags from the nearest base blob.
+     */
+    merge(baseObs, det) {
+      const balls = [];
+      const persons = [];
+      const intrusions = baseObs.intrusions.slice();
+      for (const d of det) {
+        if (d.role === "ball") {
+          const size = Math.max(d.box.w, d.box.h);
+          const cx = d.box.x + d.box.w / 2, cy = d.box.y + d.box.h / 2;
+          let moving = false, rawMoving = false;
+          for (const b of baseObs.balls) {
+            const bx = b.box.x + b.box.w / 2, by = b.box.y + b.box.h / 2;
+            if (Math.abs(bx - cx) < size * this.cfg.matchReach && Math.abs(by - cy) < size * this.cfg.matchReach) {
+              moving = moving || b.moving;
+              rawMoving = rawMoving || b.rawMoving;
+            }
+          }
+          balls.push({
+            box: d.box,
+            moving,
+            rawMoving,
+            color: d.color ?? { r: 255, g: 255, b: 255 },
+            id: d.ballId,
+            confidence: d.confidence
+          });
+        } else if (d.role === "person") {
+          persons.push({ box: d.box, moving: false, trackId: 0 });
+        } else if (d.role === "cue_stick") {
+          intrusions.push(d.box);
+        }
+      }
+      const usedIds = /* @__PURE__ */ new Set();
+      for (const p of persons) {
+        let best = null, bd = Infinity;
+        const cx = p.box.x + p.box.w / 2, cy = p.box.y + p.box.h / 2;
+        for (const q of this.prevPersons) {
+          if (usedIds.has(q.trackId)) continue;
+          const qx = q.box.x + q.box.w / 2, qy = q.box.y + q.box.h / 2;
+          const dd = (cx - qx) ** 2 + (cy - qy) ** 2;
+          if (dd < bd) {
+            bd = dd;
+            best = q;
+          }
+        }
+        if (best && bd < 0.05) {
+          p.trackId = best.trackId;
+          p.moving = Math.sqrt(bd) > 0.012;
+          usedIds.add(p.trackId);
+        }
+      }
+      let nid = 1;
+      for (const p of [...persons].sort((a, b) => a.box.x - b.box.x)) {
+        if (!p.trackId) {
+          while (usedIds.has(nid)) nid++;
+          p.trackId = nid;
+          usedIds.add(nid);
+        }
+      }
+      this.prevPersons = persons;
+      return { ...baseObs, balls, persons, intrusions };
+    }
+  };
+
+  // src/main.js
   var RULES_PROFILE = WNT_9BALL;
   var RULES = {
     standardShot: RULES_PROFILE.shotSeconds,
     afterBreak: RULES_PROFILE.afterBreakSeconds,
     extension: RULES_PROFILE.extensionSeconds
   };
-  var engine = new ClassicalEngine();
+  var classical = new ClassicalEngine();
+  var mlDetector = null;
+  var hybridEngine = null;
+  var engine = classical;
   var watcher = new Watcher(RULES_PROFILE);
   var LIVE_TRACK = {
     videoId: "N_oxfCVIJtk",
@@ -1593,7 +1931,11 @@
       this.state = watcher.rawState;
       this.setStateLabel();
       drawOverlay(this);
-      this.maybePersons(v, now);
+      if (engine === classical) {
+        this.maybePersons(v, now);
+      } else {
+        this.persons = obs.persons.map((p) => ({ x: p.box.x, y: p.box.y, w: p.box.w, h: p.box.h, id: p.trackId, moving: p.moving }));
+      }
       this.meters();
     },
     async maybePersons(v, now) {
@@ -1663,7 +2005,14 @@
       const shiftEl = document.getElementById("m-shift");
       shiftEl.textContent = cs.unstable ? "UNSTABLE" : cs.dx + "," + cs.dy;
       shiftEl.style.color = cs.unstable ? "#ff4444" : "";
-      document.getElementById("m-objs").textContent = this.balls.length + " / " + (cfg.personFps ? this.persons.length : "—");
+      document.getElementById("m-objs").textContent = this.balls.length + " / " + (cfg.personFps || engine !== classical ? this.persons.length : "—");
+      const mlEl = document.getElementById("m-ml");
+      if (engine === classical) mlEl.textContent = "OFF";
+      else {
+        const s = engine.stats;
+        mlEl.textContent = s.status === "ready" ? s.ms ? s.ms.toFixed(0) + " ms" : "WARM-UP" : s.status.toUpperCase();
+        mlEl.style.color = s.status === "error" ? "#ff4444" : "";
+      }
     }
   };
   watcher.subscribe((e) => {
@@ -1755,7 +2104,11 @@
         ctx.strokeStyle = isMoving ? "#f5a623" : "rgba(255,255,255,0.65)";
         ctx.lineWidth = isMoving ? 2 : 1;
         ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
-        if (L.motion) label(bx, by - 3, isMoving ? "BALL · MOVING" : "BALL · STILL", isMoving ? "#f5a623" : "#7eb8cc");
+        if (L.motion) {
+          const idTxt = b.id != null ? "BALL " + b.id : "BALL";
+          const conf = b.confidence != null ? " " + Math.round(b.confidence * 100) + "%" : "";
+          label(bx, by - 3, idTxt + (isMoving ? " · MOVING" : " · STILL") + conf, isMoving ? "#f5a623" : "#7eb8cc");
+        }
       }
     }
     if (L.players) {
@@ -1961,9 +2314,41 @@
   bindNum("cfg-clock", "clockSecs", 5, 120);
   document.getElementById("cfg-res").addEventListener("change", (e) => {
     cfg.res = Number(e.target.value);
-    engine.cfg.res = cfg.res;
+    classical.cfg.res = cfg.res;
     engine.resetDetection();
     pushFeed("TABLE 1", true, "CONFIG — resolution = " + cfg.res + "px");
+  });
+  function setEngine(kind) {
+    if (kind === "ml") {
+      if (!mlDetector) {
+        mlDetector = new MlDetector({ modelUrl: document.getElementById("cfg-model-url").value.trim() });
+        hybridEngine = new HybridEngine(classical, mlDetector);
+      }
+      engine = hybridEngine;
+      pushFeed("TABLE 1", true, "ENGINE — " + engine.name + "; loading detector…", "gold");
+      mlDetector.load().then(
+        () => pushFeed("TABLE 1", true, "ML_DETECTOR — ready (wasm backend)", "gold"),
+        (err) => pushFeed("TABLE 1", true, "ML_DETECTOR — failed: " + (err && err.message ? err.message : err) + " — classical observations carry on", "foul")
+      );
+    } else {
+      engine = classical;
+      pushFeed("TABLE 1", true, "ENGINE — " + engine.name);
+    }
+    document.getElementById("btn-eng-classical").classList.toggle("active", kind !== "ml");
+    document.getElementById("btn-eng-ml").classList.toggle("active", kind === "ml");
+    engine.setRoi(vision.roi);
+    if (vision.running) {
+      engine.resetDetection();
+      vision.state = "SEARCHING";
+    }
+  }
+  document.getElementById("btn-eng-classical").addEventListener("click", () => setEngine("classical"));
+  document.getElementById("btn-eng-ml").addEventListener("click", () => setEngine("ml"));
+  document.getElementById("cfg-model-url").addEventListener("change", () => {
+    const wasMl = engine === hybridEngine && hybridEngine;
+    mlDetector = null;
+    hybridEngine = null;
+    if (wasMl) setEngine("ml");
   });
   for (const id of ["cfg-rest", "cfg-address", "cfg-clock"]) {
     document.getElementById(id).addEventListener("change", syncTuning);
@@ -2497,7 +2882,8 @@
   buildLiveCard();
   saveDraft();
   syncTuning();
-  Object.assign(window, { vision, cfg, watcher, engine });
+  Object.assign(window, { vision, cfg, watcher, classical, setEngine });
+  Object.defineProperty(window, "engine", { get: () => engine });
   setMode("camera");
   tables.forEach((t) => t.emit("NEW_MATCH — " + t.players[0].name + " vs " + t.players[1].name));
   requestAnimationFrame(loop);
