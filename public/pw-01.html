@@ -167,6 +167,11 @@
   .meter .bar { height: 4px; background: rgba(0, 212, 255, 0.12); margin-top: 5px; position: relative; }
   .meter .bar i { position: absolute; inset: 0 auto 0 0; background: var(--cyan); width: 0%; transition: width 0.15s; }
   .vp-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .vp-yt-note {
+    margin-bottom: 10px; padding: 8px 10px; font-size: 10.5px; line-height: 1.6;
+    color: var(--ink-2); border: 1px solid rgba(245, 166, 35, 0.35); background: rgba(245, 166, 35, 0.05);
+  }
+  .vision-panel.vp-idle .vp-grid, .vision-panel.vp-idle .vp-meters, .vision-panel.vp-idle .vp-actions { opacity: 0.45; }
 
   /* ---- table cards ---- */
   .table-card {
@@ -295,7 +300,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 9</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 10</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -372,6 +377,7 @@
       <!-- vision control panel (camera + file modes) -->
       <div class="glow-panel vision-panel" id="vision-panel">
         <div class="vp-head"><span>VISION ENGINE</span><span class="state num" id="vp-state">OFF</span></div>
+        <div class="vp-yt-note" id="vp-yt-note" hidden>YouTube embeds are pixel-sealed cross-origin, so the vision engine can't read this feed — it runs in CAMERA and VIDEO FILE modes. Settings here still apply there.</div>
         <div class="vp-grid">
           <div class="vp-field"><label>ANALYSIS FPS</label><input class="num-input" id="cfg-fps" type="number" min="1" max="30" step="1" value="12"></div>
           <div class="vp-field"><label>IDLE FPS (ADAPTIVE)</label><input class="num-input" id="cfg-idlefps" type="number" min="1" max="30" step="1" value="3"></div>
@@ -631,7 +637,9 @@ function setMode(mode) {
   els.fileControls.hidden = mode !== "file";
   els.ytControls.hidden = !yt;
   els.ytAnnot.hidden = !yt;
-  els.visionPanel.hidden = yt;
+  els.visionPanel.classList.toggle("vp-idle", yt);
+  document.getElementById("vp-yt-note").hidden = !yt;
+  if (yt) document.getElementById("vp-state").textContent = "IDLE — EMBED SEALED";
   document.getElementById("annot-help").classList.remove("show");
   hideFallback();
   if (yt) {
