@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Pool Watcher — Shot Clock Ops</title>
+<style>
+  :root {
+    --bg: #080d1a;
+    --surface: #0d1526;
+    --surface-2: #101a30;
+    --cyan: #00d4ff;
+    --cyan-dim: rgba(0, 212, 255, 0.4);
+    --gold: #f5a623;
+    --red: #ff4444;
+    --ink: #ffffff;
+    --ink-2: #7eb8cc;
+    --ink-3: #4a6a7d;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --font-num: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); }
+  body {
+    color: var(--ink);
+    font-family: var(--font-ui);
+    line-height: 1.5;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    /* faint circuit-grid texture over the dark base */
+    background-image:
+      linear-gradient(rgba(0, 212, 255, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.045) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  .page { max-width: 1380px; margin: 0 auto; padding: 22px clamp(14px, 3vw, 36px) 120px; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+  /* ============ header — PET wordmark convention ============ */
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap;
+    border: 1px solid var(--cyan);
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.4), inset 0 0 4px rgba(0, 212, 255, 0.05);
+    background: var(--surface);
+    padding: 14px 20px;
+    margin-bottom: 10px;
+  }
+  .wordmark { display: flex; align-items: center; gap: 12px; }
+  .wordmark svg { flex: none; }
+  .wordmark .name { font-size: 18px; font-weight: 800; letter-spacing: 0.18em; }
+  .wordmark .name span { color: var(--cyan); }
+  .section-label { text-align: center; }
+  .section-label .big { font-size: 13px; font-weight: 800; letter-spacing: 0.22em; color: var(--ink); }
+  .section-label .sub { font-size: 10px; letter-spacing: 0.18em; color: var(--ink-2); margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.16em;
+    color: var(--gold); border: 1px solid var(--gold);
+    box-shadow: 0 0 8px rgba(245, 166, 35, 0.5);
+    padding: 5px 10px; background: rgba(245, 166, 35, 0.06);
+  }
+  .live-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); animation: blink 1.6s infinite; }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  .sim-note {
+    font-size: 11px; color: var(--ink-2); letter-spacing: 0.04em;
+    margin: 0 0 18px; padding: 8px 20px;
+    border: 1px solid rgba(0, 212, 255, 0.18); background: rgba(13, 21, 38, 0.6);
+  }
+  .sim-note b { color: var(--ink); }
+
+  /* ============ summary stat tiles ============ */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat {
+    background: var(--surface); padding: 12px 16px;
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 6px rgba(0, 212, 255, 0.15), inset 0 0 4px rgba(0, 212, 255, 0.04);
+  }
+  .stat .k { font-size: 10px; letter-spacing: 0.14em; color: var(--ink-2); font-weight: 700; }
+  .stat .v { font-size: 24px; font-weight: 800; margin-top: 2px; }
+  .stat .v small { font-size: 12px; font-weight: 700; color: var(--ink-2); letter-spacing: 0.08em; }
+
+  /* ============ table grid ============ */
+  .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--cyan-dim);
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.25), inset 0 0 4px rgba(0, 212, 255, 0.05);
+    padding: 16px 18px 18px;
+    display: flex; flex-direction: column; gap: 14px;
+    transition: box-shadow 0.3s, border-color 0.3s;
+  }
+  .table-card.state-running { border-color: var(--cyan); box-shadow: 0 0 14px rgba(0, 212, 255, 0.5), inset 0 0 6px rgba(0, 212, 255, 0.08); }
+  .table-card.state-critical { border-color: var(--red); box-shadow: 0 0 16px rgba(255, 68, 68, 0.55), inset 0 0 6px rgba(255, 68, 68, 0.1); }
+  .table-card.state-expired { border-color: var(--red); box-shadow: 0 0 16px rgba(255, 68, 68, 0.7); }
+
+  .tc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .tc-head .tno { font-size: 13px; font-weight: 800; letter-spacing: 0.2em; color: var(--cyan); }
+  .tc-head .race { font-size: 10px; letter-spacing: 0.12em; color: var(--ink-2); font-weight: 700; }
+
+  .state-badge {
+    align-self: flex-start;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
+    padding: 4px 10px; border: 1px solid;
+  }
+  .state-badge.running  { color: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 6px rgba(0, 212, 255, 0.4); }
+  .state-badge.warning  { color: var(--gold); border-color: var(--gold); box-shadow: 0 0 6px rgba(245, 166, 35, 0.5); }
+  .state-badge.critical { color: var(--red); border-color: var(--red); box-shadow: 0 0 8px rgba(255, 68, 68, 0.6); animation: blink 0.7s infinite; }
+  .state-badge.held     { color: var(--ink-2); border-color: rgba(126, 184, 204, 0.5); }
+  .state-badge.idle     { color: var(--ink-3); border-color: rgba(74, 106, 125, 0.5); }
+  .state-badge.expired  { color: var(--red); border-color: var(--red); box-shadow: 0 0 8px rgba(255, 68, 68, 0.6); }
+
+  /* clock zone: ring + readout */
+  .clock-zone { display: flex; align-items: center; gap: 18px; }
+  .ring-wrap { position: relative; width: 118px; height: 118px; flex: none; }
+  .ring-wrap svg { width: 118px; height: 118px; transform: rotate(-90deg); }
+  .ring-track { fill: none; stroke: rgba(0, 212, 255, 0.12); stroke-width: 6; }
+  .ring-val { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke 0.3s; }
+  .ring-secs {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .ring-secs .t { font-size: 34px; font-weight: 800; line-height: 1; }
+  .ring-secs .u { font-size: 9px; letter-spacing: 0.18em; color: var(--ink-3); font-weight: 700; margin-top: 3px; }
+  .clock-meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .shot-type { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: var(--ink-2); }
+  .shot-type.break60 { color: var(--gold); }
+  .cv-line { font-size: 11px; color: var(--ink-3); letter-spacing: 0.04em; }
+  .cv-line b { color: var(--ink-2); font-weight: 700; }
+
+  /* players */
+  .players { display: flex; flex-direction: column; gap: 6px; }
+  .player {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px;
+    border: 1px solid rgba(0, 212, 255, 0.14);
+    background: var(--surface-2);
+  }
+  .player.at-table { border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 166, 35, 0.35); }
+  .player .marker { width: 8px; height: 8px; flex: none; background: transparent; border: 1px solid var(--ink-3); }
+  .player.at-table .marker { background: var(--gold); border-color: var(--gold); }
+  .player .pname { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player.at-table .pname::after { content: "AT TABLE"; font-size: 8px; font-weight: 800; letter-spacing: 0.14em; color: var(--gold); margin-left: 8px; vertical-align: 2px; }
+  .player .ext { font-size: 9px; font-weight: 800; letter-spacing: 0.1em; }
+  .player .ext.avail { color: var(--cyan); }
+  .player .ext.used { color: var(--ink-3); text-decoration: line-through; }
+  .player .score { font-size: 18px; font-weight: 800; min-width: 26px; text-align: right; }
+
+  /* ============ event feed — BN InfoBar ============ */
+  .feed {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    background: rgba(8, 13, 26, 0.92);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid var(--cyan);
+    box-shadow: 0 0 12px rgba(0, 212, 255, 0.35);
+    padding: 8px clamp(14px, 3vw, 36px);
+  }
+  .feed-inner { max-width: 1380px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+  .feed-label { font-size: 9px; font-weight: 800; letter-spacing: 0.18em; color: var(--cyan); flex: none; }
+  .feed-items { overflow: hidden; flex: 1; display: flex; flex-direction: column-reverse; max-height: 54px; }
+  .feed-item { flex: none; font-size: 11px; line-height: 18px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .feed-item .ts { color: var(--ink-3); }
+  .feed-item .tno { color: var(--cyan); font-weight: 700; }
+  .feed-item .ev { color: var(--ink); font-weight: 700; }
+  .feed-item.foul .ev { color: var(--red); }
+  .feed-item.gold .ev { color: var(--gold); }
+
+  /* controls */
+  .controls { display: flex; gap: 8px; }
+  .btn {
+    font-family: var(--font-ui); cursor: pointer;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
+    color: var(--cyan); background: var(--surface);
+    border: 1px solid var(--cyan-dim); padding: 6px 12px;
+  }
+  .btn:hover { box-shadow: 0 0 10px rgba(0, 212, 255, 0.5); border-color: var(--cyan); }
+  .btn.active { color: var(--gold); border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 166, 35, 0.5); background: rgba(245, 166, 35, 0.08); }
+
+  footer { margin-top: 34px; font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; }
+  footer a { color: var(--ink-2); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="wordmark">
+      <!-- hex accent, BN header convention -->
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+        <polygon points="13,1.5 23.5,7.5 23.5,18.5 13,24.5 2.5,18.5 2.5,7.5"
+          fill="none" stroke="#00d4ff" stroke-width="1.4" opacity="0.9"/>
+        <polygon points="13,6 19.5,9.7 19.5,16.3 13,20 6.5,16.3 6.5,9.7"
+          fill="rgba(0,212,255,0.12)" stroke="#f5a623" stroke-width="1"/>
+      </svg>
+      <div class="name">POOL<span>WATCHER</span></div>
+    </div>
+    <div class="section-label">
+      <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
+      <div class="sub">WNT EVENT · ALL TABLES</div>
+    </div>
+    <div class="header-right">
+      <div class="controls" role="group" aria-label="Simulation speed">
+        <button class="btn" id="btn-pause">PAUSE</button>
+        <button class="btn active" data-speed="1">1×</button>
+        <button class="btn" data-speed="2">2×</button>
+        <button class="btn" data-speed="4">4×</button>
+      </div>
+      <div class="live-badge"><span class="dot"></span>SIM FEED</div>
+    </div>
+  </header>
+
+  <p class="sim-note"><b>Concept demo.</b> Every clock below is driven by a simulated computer-vision event stream — the same event contract (<span class="num">PLAYER_ADDRESSING · SHOT_TAKEN · BALLS_AT_REST · BREAK_DETECTED · GAME_OVER</span>) a real per-table vision system would emit. No refs pressing timers: address detection starts the clock, shot detection holds it.</p>
+
+  <div class="stats" id="stats">
+    <div class="stat"><div class="k">TABLES LIVE</div><div class="v num" id="st-tables">—</div></div>
+    <div class="stat"><div class="k">CLOCKS RUNNING</div><div class="v num" id="st-running">—</div></div>
+    <div class="stat"><div class="k">SHOT-CLOCK FOULS</div><div class="v num" id="st-fouls">0</div></div>
+    <div class="stat"><div class="k">EXTENSIONS USED</div><div class="v num" id="st-exts">0</div></div>
+    <div class="stat"><div class="k">AVG SHOT TIME</div><div class="v num" id="st-avg">—<small> S</small></div></div>
+  </div>
+
+  <div class="tables" id="tables"></div>
+
+  <footer>
+    POOL WATCHER — concept dashboard for camera-based shot clock officiating. Rules modeled: 30s standard / 60s after the break, one 30s extension per player per rack, clock held between shots until the incoming player addresses. Part of the Pool Watcher project.
+  </footer>
+</div>
+
+<div class="feed" role="log" aria-label="Vision event feed">
+  <div class="feed-inner">
+    <div class="feed-label">CV EVENT FEED</div>
+    <div class="feed-items" id="feed"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Pool Watcher — simulated tournament.
+   Each table runs a shot-clock state machine fed by a fake CV
+   event stream; the real product swaps the simulator for edge
+   inference emitting the same events.
+   ============================================================ */
+
+const RULES = {
+  standardShot: 30,   // seconds
+  afterBreak: 60,     // first shot after the break
+  extension: 30,      // one per player per rack
+};
+
+const NAMES = [
+  ["F. Gorst", "J. Filler"], ["S. Souquet", "F. Sanchez-Ruiz"],
+  ["E. Kaci", "M. Konrad"], ["K. Boyes", "W. Acosta"],
+  ["A. Kazakis", "N. Ekonomopoulos"], ["Ko P.C.", "D. Appleton"],
+];
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+let fouls = 0, extsUsed = 0;
+const shotTimes = [];
+
+class Table {
+  constructor(i) {
+    this.no = i + 1;
+    this.players = NAMES[i % NAMES.length].map(n => ({ name: n, score: 0, ext: true }));
+    this.raceTo = pick([9, 10, 11]);
+    this.turn = Math.round(Math.random());   // index of player at table
+    this.breaker = this.turn;
+    this.phase = "RACKING";                  // RACKING | GRACE | ADDRESSING | EXPIRED | MATCH_OVER
+    this.nextIsBreak = true;                 // next address is the break shot
+    this.afterBreak = false;                 // next shot gets 60s
+    this.clock = RULES.standardShot;
+    this.limit = RULES.standardShot;
+    this.wait = rand(2, 5);                  // seconds until next sim event
+    this.lastEvent = "RACK_SET";
+    this.shotStart = 0;
+  }
+
+  emit(ev, cls) { pushFeed(this, ev, cls); this.lastEvent = ev; }
+
+  /* advance the simulation by dt seconds */
+  tick(dt) {
+    if (this.phase === "MATCH_OVER") return;
+
+    if (this.phase === "ADDRESSING") {
+      this.clock -= dt;
+      if (this.clock <= 0) {                 // shot-clock foul
+        this.clock = 0;
+        this.phase = "EXPIRED";
+        fouls++;
+        this.emit("SHOT_CLOCK_FOUL — ball in hand " + this.opponent().name, "foul");
+        this.wait = rand(4, 7);
+        return;
+      }
+      // decide whether the sim "takes the shot" now
+      this.wait -= dt;
+      if (this.wait <= 0) {
+        // low clock? maybe burn the extension instead of shooting
+        const p = this.players[this.turn];
+        if (this.clock < 8 && p.ext && Math.random() < 0.3) {
+          p.ext = false; extsUsed++;
+          this.clock += RULES.extension;
+          this.emit("EXTENSION — " + p.name + " (+30s)", "gold");
+          this.wait = rand(3, Math.min(14, this.clock - 2));
+          return;
+        }
+        this.takeShot();
+      }
+      return;
+    }
+
+    // RACKING / GRACE / EXPIRED — clock is held; count down to next event
+    this.wait -= dt;
+    if (this.wait > 0) return;
+
+    if (this.phase === "RACKING") {
+      this.startAddress();
+    } else if (this.phase === "GRACE") {
+      this.startAddress();
+    } else if (this.phase === "EXPIRED") {
+      // opponent takes over with ball in hand
+      this.turn = 1 - this.turn;
+      this.phase = "GRACE";
+      this.wait = rand(2, 5);
+    }
+  }
+
+  startAddress() {
+    const isBreak = this.nextIsBreak;
+    this.limit = this.afterBreak ? RULES.afterBreak : RULES.standardShot;
+    this.clock = this.limit;
+    this.phase = "ADDRESSING";
+    this.shotStart = this.limit;
+    this.emit("PLAYER_ADDRESSING — clock " + this.limit + "s" + (isBreak ? " (break)" : this.afterBreak ? " (after break)" : ""));
+    // how long they'll take, occasionally flirting with (or blowing) the clock
+    const r = Math.random();
+    if (r < 0.05) this.wait = this.limit + 5;              // will foul unless extension saves them
+    else if (r < 0.25) this.wait = rand(this.limit * 0.7, this.limit - 1);
+    else this.wait = rand(4, this.limit * 0.6);
+  }
+
+  takeShot() {
+    shotTimes.push(this.shotStart - this.clock);
+    const wasBreak = this.nextIsBreak;
+    this.nextIsBreak = false;
+    this.afterBreak = wasBreak;
+    this.emit(wasBreak ? "BREAK_DETECTED" : "SHOT_TAKEN", wasBreak ? "gold" : undefined);
+    this.phase = "GRACE";
+    this.wait = rand(3, 8);                  // balls rolling + walk-around
+
+    if (!wasBreak) {
+      if (Math.random() < 0.10) {            // rack won
+        this.gameOver();
+      } else if (Math.random() < 0.35) {     // missed / safety — table changes hands
+        this.turn = 1 - this.turn;
+        this.wait = rand(4, 9);
+      }
+    } else if (Math.random() < 0.2) {        // dry break
+      this.turn = 1 - this.turn;
+    }
+  }
+
+  gameOver() {
+    const w = this.players[this.turn];
+    w.score++;
+    this.emit("GAME_OVER — rack to " + w.name + " (" + this.players[0].score + "–" + this.players[1].score + ")", "gold");
+    if (w.score >= this.raceTo) {
+      this.phase = "MATCH_OVER";
+      this.emit("MATCH_OVER — " + w.name + " wins " + this.players[0].score + "–" + this.players[1].score, "gold");
+      // fresh match on the same table after a break
+      setTimeout(() => { resetTable(this); }, 12000 / sim.speed);
+      return;
+    }
+    // new rack: extensions reset, winner (alternate) breaks
+    this.players.forEach(p => p.ext = true);
+    this.breaker = 1 - this.breaker;
+    this.turn = this.breaker;
+    this.nextIsBreak = true;
+    this.afterBreak = false;
+    this.phase = "RACKING";
+    this.wait = rand(8, 14);
+  }
+
+  opponent() { return this.players[1 - this.turn]; }
+}
+
+function resetTable(t) {
+  const i = t.no - 1;
+  tables[i] = new Table(i);
+  tables[i].emit("NEW_MATCH — " + tables[i].players[0].name + " vs " + tables[i].players[1].name);
+  buildCards();
+}
+
+/* ---------------- feed ---------------- */
+const feedEl = document.getElementById("feed");
+function pushFeed(table, ev, cls) {
+  const d = new Date();
+  const ts = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
+  const item = document.createElement("div");
+  item.className = "feed-item" + (cls ? " " + cls : "");
+  item.innerHTML = '<span class="ts num">' + ts + '</span> · <span class="tno">TABLE ' + table.no + '</span> · <span class="ev"></span>';
+  item.querySelector(".ev").textContent = ev;
+  feedEl.prepend(item);
+  while (feedEl.children.length > 24) feedEl.lastChild.remove();
+}
+
+/* ---------------- render ---------------- */
+const tables = Array.from({ length: 6 }, (_, i) => new Table(i));
+const tablesEl = document.getElementById("tables");
+const CIRC = 2 * Math.PI * 53;
+
+function buildCards() {
+  tablesEl.innerHTML = tables.map(t => `
+    <div class="table-card" id="card-${t.no}">
+      <div class="tc-head">
+        <div class="tno">TABLE ${t.no}</div>
+        <div class="race num">RACE TO ${t.raceTo}</div>
+      </div>
+      <div class="state-badge idle" id="badge-${t.no}">RACKING</div>
+      <div class="clock-zone">
+        <div class="ring-wrap">
+          <svg viewBox="0 0 118 118" aria-hidden="true">
+            <circle class="ring-track" cx="59" cy="59" r="53"></circle>
+            <circle class="ring-val" id="ring-${t.no}" cx="59" cy="59" r="53"
+              stroke="#00d4ff" stroke-dasharray="${CIRC}" stroke-dashoffset="0"></circle>
+          </svg>
+          <div class="ring-secs">
+            <div class="t num" id="secs-${t.no}">–</div>
+            <div class="u">SECONDS</div>
+          </div>
+        </div>
+        <div class="clock-meta">
+          <div class="shot-type" id="stype-${t.no}">30S SHOT</div>
+          <div class="cv-line">LAST CV EVENT<br><b id="cv-${t.no}">—</b></div>
+        </div>
+      </div>
+      <div class="players" id="players-${t.no}"></div>
+    </div>`).join("");
+}
+
+function renderTable(t) {
+  const badge = document.getElementById("badge-" + t.no);
+  const card = document.getElementById("card-" + t.no);
+  const ring = document.getElementById("ring-" + t.no);
+  const secs = document.getElementById("secs-" + t.no);
+  const stype = document.getElementById("stype-" + t.no);
+  if (!badge) return;
+
+  document.getElementById("cv-" + t.no).textContent = t.lastEvent;
+  stype.textContent = t.afterBreak && t.phase !== "ADDRESSING" || (t.phase === "ADDRESSING" && t.limit === RULES.afterBreak)
+    ? "60S — AFTER BREAK" : (t.nextIsBreak ? "BREAK SHOT" : "30S SHOT");
+  stype.className = "shot-type" + (t.limit === RULES.afterBreak && t.phase === "ADDRESSING" ? " break60" : "");
+
+  let stateCls = "idle", stateTxt = "RACKING", ringColor = "rgba(126,184,204,0.35)", cardCls = "";
+  const s = Math.ceil(t.clock);
+
+  if (t.phase === "ADDRESSING") {
+    if (t.clock <= 5)      { stateCls = "critical"; stateTxt = "CLOCK CRITICAL"; ringColor = "#ff4444"; cardCls = "state-critical"; }
+    else if (t.clock <= 10){ stateCls = "warning";  stateTxt = "CLOCK LOW";      ringColor = "#f5a623"; cardCls = "state-running"; }
+    else                   { stateCls = "running";  stateTxt = "CLOCK RUNNING";  ringColor = "#00d4ff"; cardCls = "state-running"; }
+    ring.style.strokeDashoffset = CIRC * (1 - Math.max(0, t.clock) / t.limit);
+    secs.textContent = s;
+  } else if (t.phase === "GRACE") {
+    stateCls = "held"; stateTxt = "HELD — AWAITING ADDRESS";
+    ring.style.strokeDashoffset = 0;
+    secs.textContent = t.afterBreak ? RULES.afterBreak : RULES.standardShot;
+  } else if (t.phase === "EXPIRED") {
+    stateCls = "expired"; stateTxt = "SHOT-CLOCK FOUL"; ringColor = "#ff4444"; cardCls = "state-expired";
+    ring.style.strokeDashoffset = CIRC;
+    secs.textContent = 0;
+  } else if (t.phase === "MATCH_OVER") {
+    stateCls = "idle"; stateTxt = "MATCH OVER";
+    ring.style.strokeDashoffset = 0;
+    secs.textContent = "–";
+  } else { // RACKING
+    ring.style.strokeDashoffset = 0;
+    secs.textContent = t.nextIsBreak ? "–" : t.limit;
+  }
+
+  badge.className = "state-badge " + stateCls;
+  badge.textContent = stateTxt;
+  ring.setAttribute("stroke", ringColor);
+  card.className = "table-card " + cardCls;
+
+  document.getElementById("players-" + t.no).innerHTML = t.players.map((p, i) => `
+    <div class="player ${i === t.turn && t.phase !== "MATCH_OVER" ? "at-table" : ""}">
+      <span class="marker" aria-hidden="true"></span>
+      <span class="pname">${p.name}</span>
+      <span class="ext ${p.ext ? "avail" : "used"}">${p.ext ? "EXT ●" : "EXT USED"}</span>
+      <span class="score num">${p.score}</span>
+    </div>`).join("");
+}
+
+function renderStats() {
+  const live = tables.filter(t => t.phase !== "MATCH_OVER").length;
+  const running = tables.filter(t => t.phase === "ADDRESSING").length;
+  document.getElementById("st-tables").textContent = live;
+  document.getElementById("st-running").textContent = running;
+  document.getElementById("st-fouls").textContent = fouls;
+  document.getElementById("st-exts").textContent = extsUsed;
+  const avg = shotTimes.length ? (shotTimes.reduce((a, b) => a + b, 0) / shotTimes.length) : null;
+  document.getElementById("st-avg").innerHTML = (avg ? avg.toFixed(1) : "—") + "<small> S</small>";
+}
+
+/* ---------------- loop ---------------- */
+const sim = { speed: 1, paused: false };
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.25, (now - last) / 1000) * sim.speed;
+  last = now;
+  if (!sim.paused) {
+    tables.forEach(t => t.tick(dt));
+    tables.forEach(renderTable);
+    renderStats();
+  }
+  requestAnimationFrame(loop);
+}
+
+document.querySelectorAll("[data-speed]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    sim.speed = Number(btn.dataset.speed);
+    document.querySelectorAll("[data-speed]").forEach(b => b.classList.toggle("active", b === btn));
+  });
+});
+document.getElementById("btn-pause").addEventListener("click", e => {
+  sim.paused = !sim.paused;
+  e.target.textContent = sim.paused ? "RESUME" : "PAUSE";
+  e.target.classList.toggle("active", sim.paused);
+});
+
+buildCards();
+tables.forEach(t => t.emit("NEW_MATCH — " + t.players[0].name + " vs " + t.players[1].name));
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
