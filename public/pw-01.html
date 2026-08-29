@@ -407,6 +407,14 @@
           <button class="btn" id="btn-ext-live">EXTENSION +30</button>
           <button class="btn" id="btn-reset-live">RESET CLOCK</button>
         </div>
+        <div class="vp-actions" role="group" aria-label="Overlay layers">
+          <span style="font-size:9px;font-weight:800;letter-spacing:0.12em;color:var(--ink-2);align-self:center;">OVERLAYS</span>
+          <button class="btn active" data-layer="table">TABLE</button>
+          <button class="btn active" data-layer="balls">BALLS</button>
+          <button class="btn active" data-layer="motion">MOTION</button>
+          <button class="btn active" data-layer="players">PLAYERS</button>
+          <button class="btn active" data-layer="state">STATE</button>
+        </div>
       </div>
 
       <div class="table-card live-card" id="live-card"></div>
@@ -730,6 +738,7 @@ const cfg = {
   sens: 5,               // 1..10 → motion threshold
   restHoldMs: 700, addressHoldMs: 1200, clockSecs: 30,
   personFps: 0,
+  overlays: { table: true, balls: true, motion: true, players: true, state: true },
 };
 /* A lone rolling ball changes only ~0.2–0.7% of table pixels, so thresholds
    run very low; the sensitivity slider spans camera-noise floor to broadcast-safe. */
@@ -742,7 +751,7 @@ const vision = {
   prevGray: null, prevW: 0,
   clothHue: null, clothLockFrames: 0,
   table: null,           // {x,y,w,h} in analysis px
-  balls: [], intrusion: false,
+  balls: [], intrusion: false, intrusions: [],
   motionEma: 0, restSince: 0, addressSince: 0, idleSince: 0,
   state: "OFF",          // OFF|SEARCHING|READY|ADDRESSING|ROLLING|EXPIRED
   clockStart: 0, clockLimit: 30, extUsed: false,
@@ -898,8 +907,9 @@ const vision = {
     if (hadTable && !this.table) pushFeed("TABLE 1", true, "FEED_LOST — table lost from view", "foul");
 
     // --- pass 3: motion energy inside table bbox ---
+    const prevG = (this.prevW === aw) ? this.prevGray : null;
     let energy = 0;
-    if (this.table && this.prevGray && this.prevW === aw) {
+    if (this.table && prevG) {
       const { x, y, w, h } = this.table;
       let changed = 0, total = 0;
       const x0 = x | 0, y0 = y | 0, x1 = (x + w) | 0, y1 = (y + h) | 0;
@@ -907,16 +917,15 @@ const vision = {
         for (let xx = x0; xx < x1; xx++) {
           const i = yy * aw + xx;
           total++;
-          if (Math.abs(gray[i] - this.prevGray[i]) > 24) changed++;
+          if (Math.abs(gray[i] - prevG[i]) > 24) changed++;
         }
       }
       energy = total ? changed / total : 0;
     }
-    this.prevGray = gray; this.prevW = aw;
     this.motionEma = this.motionEma * 0.6 + energy * 0.4;
 
     // --- pass 4: non-cloth blobs inside table (balls + intrusion) ---
-    this.balls = []; this.intrusion = false;
+    this.balls = []; this.intrusion = false; this.intrusions = [];
     if (this.table) {
       const { x, y, w, h } = this.table;
       const x0 = Math.max(0, x | 0), y0 = Math.max(0, y | 0);
@@ -961,15 +970,31 @@ const vision = {
         const bw = bl.mxx - bl.mnx + 1, bh = bl.mxy - bl.mny + 1;
         if (bl.edge) {
           if (bl.area > tableArea * 0.02 &&
-              bl.mxx > ix0 && bl.mnx < ix1 && bl.mxy > iy0 && bl.mny < iy1) this.intrusion = true;
+              bl.mxx > ix0 && bl.mnx < ix1 && bl.mxy > iy0 && bl.mny < iy1) {
+            this.intrusion = true;
+            this.intrusions.push(bl);
+          }
           continue;
         }
         if (bl.area >= minBall && bl.area <= maxBall && bw / bh < 2.6 && bh / bw < 2.6) {
+          // per-object motion: fraction of this blob's bbox that changed since last frame
+          bl.moving = false;
+          if (prevG) {
+            let ch = 0, tot = 0;
+            for (let yy = bl.mny; yy <= bl.mxy; yy++) {
+              for (let xx = bl.mnx; xx <= bl.mxx; xx++) {
+                const q = yy * aw + xx; tot++;
+                if (Math.abs(gray[q] - prevG[q]) > 24) ch++;
+              }
+            }
+            bl.moving = tot > 0 && ch / tot > 0.18;
+          }
           this.balls.push(bl);
         }
       }
       if (this.balls.length > 20) this.balls.length = 20;
     }
+    this.prevGray = gray; this.prevW = aw;
   },
 
   machine(now) {
@@ -1049,8 +1074,25 @@ const vision = {
         pushFeed("TABLE 1", true, "ML — person model ready", "gold");
       }
       const preds = await this.personModel.detect(v);
-      this.persons = preds.filter(p => p.class === "person" && p.score > 0.5)
+      const prev = this.persons;
+      const next = preds.filter(p => p.class === "person" && p.score > 0.5)
         .map(p => ({ x: p.bbox[0] / v.videoWidth, y: p.bbox[1] / v.videoHeight, w: p.bbox[2] / v.videoWidth, h: p.bbox[3] / v.videoHeight }));
+      next.forEach(p => { p.cx = p.x + p.w / 2; p.cy = p.y + p.h / 2; });
+      // keep PLAYER numbers stable: match each detection to the nearest previous one
+      next.forEach(p => {
+        let best = null, bd = Infinity;
+        for (const q of prev) {
+          const dd = (p.cx - q.cx) ** 2 + (p.cy - q.cy) ** 2;
+          if (dd < bd) { bd = dd; best = q; }
+        }
+        if (best && bd < 0.05) { p.id = best.id; p.moving = Math.sqrt(bd) > 0.012; }
+      });
+      const used = new Set(next.filter(p => p.id).map(p => p.id));
+      let nid = 1;
+      next.slice().sort((a, b) => a.cx - b.cx).forEach(p => {
+        if (!p.id) { while (used.has(nid)) nid++; p.id = nid; used.add(nid); p.moving = false; }
+      });
+      this.persons = next;
       this.lastPersonAt = now;
     } catch (err) {
       cfg.personFps = 0;
@@ -1094,52 +1136,70 @@ function drawOverlay(vs) {
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   ctx.clearRect(0, 0, dw, dh);
   if (!v.videoWidth) return;
+  const L = cfg.overlays;
+  const numFont = getComputedStyle(document.body).getPropertyValue("--font-num");
   // object-fit: contain mapping
   const vAR = v.videoWidth / v.videoHeight, dAR = dw / dh;
   let ox = 0, oy = 0, sw = dw, sh = dh;
   if (vAR > dAR) { sh = dw / vAR; oy = (dh - sh) / 2; } else { sw = dh * vAR; ox = (dw - sw) / 2; }
   const sx = sw / vs.an.width, sy = sh / vs.an.height;
 
-  if (vs.table) {
+  function label(x, y, text, color) {
+    ctx.font = "800 9px " + numFont;
+    const w = ctx.measureText(text).width + 8;
+    ctx.fillStyle = "rgba(8,13,26,0.8)";
+    ctx.fillRect(x, y - 11, w, 13);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x + 4, y - 1);
+  }
+
+  if (L.table && vs.table) {
     const t = vs.table;
     ctx.strokeStyle = "#00d4ff"; ctx.lineWidth = 2;
     ctx.shadowColor = "rgba(0,212,255,0.8)"; ctx.shadowBlur = 8;
     ctx.strokeRect(ox + t.x * sx, oy + t.y * sy, t.w * sx, t.h * sy);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = "#00d4ff";
-    ctx.font = "700 10px " + getComputedStyle(document.body).getPropertyValue("--font-num");
-    ctx.fillText("TABLE", ox + t.x * sx + 4, oy + t.y * sy + 12);
+    label(ox + t.x * sx + 2, oy + t.y * sy + 13, "TABLE · LOCKED", "#00d4ff");
   }
-  for (const b of vs.balls) {
-    const bx = ox + b.mnx * sx - 2, by = oy + b.mny * sy - 2;
-    const bw = (b.mxx - b.mnx + 1) * sx + 4, bh = (b.mxy - b.mny + 1) * sy + 4;
-    ctx.strokeStyle = "rgb(" + b.r + "," + b.g + "," + b.b + ")";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(bx, by, bw, bh);
-    ctx.strokeStyle = "rgba(255,255,255,0.65)"; ctx.lineWidth = 1;
-    ctx.strokeRect(bx - 1, by - 1, bw + 2, bh + 2);
+  if (L.balls) {
+    for (const b of vs.balls) {
+      const bx = ox + b.mnx * sx - 2, by = oy + b.mny * sy - 2;
+      const bw = (b.mxx - b.mnx + 1) * sx + 4, bh = (b.mxy - b.mny + 1) * sy + 4;
+      const isMoving = L.motion && b.moving;
+      ctx.strokeStyle = "rgb(" + b.r + "," + b.g + "," + b.b + ")";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.strokeStyle = isMoving ? "#f5a623" : "rgba(255,255,255,0.65)";
+      ctx.lineWidth = isMoving ? 2 : 1;
+      ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+      if (L.motion) label(bx, by - 3, isMoving ? "BALL · MOVING" : "BALL · STILL", isMoving ? "#f5a623" : "#7eb8cc");
+    }
   }
-  if (vs.intrusion && vs.table) {
-    ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
-    const t = vs.table;
-    ctx.strokeRect(ox + t.x * sx - 3, oy + t.y * sy - 3, t.w * sx + 6, t.h * sy + 6);
-    ctx.setLineDash([]);
-    ctx.fillStyle = "#f5a623";
-    ctx.fillText("PLAYER AT TABLE", ox + t.x * sx + 4, oy + (t.y + t.h) * sy - 6);
+  if (L.players) {
+    for (const bl of vs.intrusions) {
+      const bx = ox + bl.mnx * sx, by = oy + bl.mny * sy;
+      const bw = (bl.mxx - bl.mnx + 1) * sx, bh = (bl.mxy - bl.mny + 1) * sy;
+      ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.setLineDash([]);
+      label(bx, by - 3, "ARM/CUE · IN TABLE", "#f5a623");
+    }
+    for (const p of vs.persons) {
+      const px = ox + p.x * sw, py = oy + p.y * sh;
+      ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2;
+      ctx.strokeRect(px, py, p.w * sw, p.h * sh);
+      const st = L.motion ? (p.moving ? " · MOVING" : " · STILL") : "";
+      label(px, py - 3, "PLAYER " + p.id + st, "#f5a623");
+    }
   }
-  for (const p of vs.persons) {
-    ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2;
-    ctx.strokeRect(ox + p.x * sw, oy + p.y * sh, p.w * sw, p.h * sh);
-    ctx.fillStyle = "#f5a623";
-    ctx.fillText("PLAYER", ox + p.x * sw + 4, oy + p.y * sh + 12);
+  if (L.state) {
+    ctx.fillStyle = "rgba(8,13,26,0.75)";
+    ctx.fillRect(6, 6, 190, 22);
+    ctx.fillStyle = vs.state === "ADDRESSING" ? "#00d4ff" : vs.state === "EXPIRED" ? "#ff4444" : "#7eb8cc";
+    ctx.font = "800 11px " + getComputedStyle(document.body).getPropertyValue("--font-ui");
+    const clock = vs.state === "ADDRESSING" ? " · " + Math.ceil(vs.clockRemaining(performance.now())) + "s" : "";
+    ctx.fillText(vs.state + clock, 14, 21);
   }
-  // state chip
-  ctx.fillStyle = "rgba(8,13,26,0.75)";
-  ctx.fillRect(6, 6, 170, 22);
-  ctx.fillStyle = vs.state === "ADDRESSING" ? "#00d4ff" : vs.state === "EXPIRED" ? "#ff4444" : "#7eb8cc";
-  ctx.font = "800 11px " + getComputedStyle(document.body).getPropertyValue("--font-ui");
-  const clock = vs.state === "ADDRESSING" ? " · " + Math.ceil(vs.clockRemaining(performance.now())) + "s" : "";
-  ctx.fillText(vs.state + clock, 14, 21);
 }
 
 /* ---------------- control panel bindings ---------------- */
@@ -1165,6 +1225,13 @@ document.getElementById("cfg-sens").addEventListener("input", (e) => {
   document.getElementById("cfg-sens-val").textContent = cfg.sens;
 });
 document.getElementById("cfg-person").addEventListener("change", (e) => { cfg.personFps = Number(e.target.value); });
+document.querySelectorAll("[data-layer]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const k = btn.dataset.layer;
+    cfg.overlays[k] = !cfg.overlays[k];
+    btn.classList.toggle("active", cfg.overlays[k]);
+  });
+});
 document.getElementById("btn-adaptive").addEventListener("click", (e) => {
   cfg.adaptive = !cfg.adaptive;
   e.target.textContent = "ADAPTIVE: " + (cfg.adaptive ? "ON" : "OFF");
