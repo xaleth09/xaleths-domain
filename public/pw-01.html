@@ -71,7 +71,7 @@
   .live-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); animation: blink 1.6s infinite; }
   @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 
-  .controls { display: flex; gap: 8px; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn {
     font-family: var(--font-ui); cursor: pointer;
     font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
@@ -80,11 +80,12 @@
   }
   .btn:hover { box-shadow: 0 0 10px rgba(0, 212, 255, 0.5); border-color: var(--cyan); }
   .btn.active { color: var(--gold); border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 166, 35, 0.5); background: rgba(245, 166, 35, 0.08); }
+  .btn:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
 
   /* ============ 3-column layout ============ */
   .layout {
     display: grid;
-    grid-template-columns: minmax(340px, 420px) minmax(0, 1fr) clamp(240px, 18vw, 320px);
+    grid-template-columns: minmax(340px, 440px) minmax(0, 1fr) clamp(240px, 18vw, 320px);
     gap: 16px;
     align-items: start;
   }
@@ -93,18 +94,23 @@
     .feed-strip { position: static !important; max-height: 420px !important; }
   }
 
-  /* ---- left column: video + live table ---- */
+  /* ---- left column ---- */
   .left-col { display: flex; flex-direction: column; gap: 16px; }
   .video-panel { padding: 12px; }
+  .mode-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .mode-tabs .btn { flex: 1; text-align: center; }
   .video-frame {
     position: relative; width: 100%; aspect-ratio: 16 / 9;
     background: #000; border: 1px solid rgba(0, 212, 255, 0.25);
     overflow: hidden;
   }
   .video-frame iframe, .video-frame #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  #cv-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #cv-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .video-fallback {
     position: absolute; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 16px;
+    background: rgba(8, 13, 26, 0.85); z-index: 3;
   }
   .video-fallback .t { font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: var(--red); }
   .video-fallback .d { font-size: 11px; color: var(--ink-3); }
@@ -118,15 +124,15 @@
   .feed-state.paused  { color: var(--gold); border-color: var(--gold); }
   .feed-state.lost    { color: var(--red); border-color: var(--red); }
   .video-time { font-size: 11px; color: var(--ink-2); letter-spacing: 0.06em; }
-  .annot-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
-  .url-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
-  .url-input {
-    flex: 1; min-width: 0;
+  .annot-row, .url-row, .src-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .url-row { flex-wrap: nowrap; }
+  .url-input, .num-input, .sel-input {
     font-family: var(--font-num); font-size: 11px; letter-spacing: 0.02em;
     color: var(--ink); background: var(--surface-2);
     border: 1px solid rgba(0, 212, 255, 0.25); padding: 7px 10px;
     outline: none;
   }
+  .url-input { flex: 1; min-width: 0; }
   .url-input:disabled { color: var(--ink-3); border-color: rgba(0, 212, 255, 0.12); }
   .url-input:not(:disabled) { border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 166, 35, 0.35); }
   .url-input.bad { border-color: var(--red); box-shadow: 0 0 8px rgba(255, 68, 68, 0.4); }
@@ -141,8 +147,27 @@
     font-family: var(--font-num); font-size: 10px; color: var(--cyan);
     border: 1px solid rgba(0, 212, 255, 0.4); padding: 0 5px; margin-right: 2px;
   }
+  input[type="file"] { display: none; }
 
-  /* ---- table cards (shared by live + sim) ---- */
+  /* ---- vision control panel ---- */
+  .vision-panel { padding: 14px 16px 16px; }
+  .vp-head { font-size: 10px; font-weight: 800; letter-spacing: 0.18em; color: var(--cyan); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
+  .vp-head .state { color: var(--gold); }
+  .vp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .vp-field { display: flex; flex-direction: column; gap: 4px; }
+  .vp-field label { font-size: 9px; font-weight: 800; letter-spacing: 0.12em; color: var(--ink-2); }
+  .num-input { width: 100%; }
+  .sel-input { width: 100%; }
+  input[type="range"] { width: 100%; accent-color: #00d4ff; background: transparent; }
+  .vp-meters { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .meter { border: 1px solid rgba(0, 212, 255, 0.18); background: var(--surface-2); padding: 7px 10px; }
+  .meter .k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.12em; color: var(--ink-3); }
+  .meter .v { font-size: 15px; font-weight: 800; margin-top: 1px; }
+  .meter .bar { height: 4px; background: rgba(0, 212, 255, 0.12); margin-top: 5px; position: relative; }
+  .meter .bar i { position: absolute; inset: 0 auto 0 0; background: var(--cyan); width: 0%; transition: width 0.15s; }
+  .vp-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  /* ---- table cards ---- */
   .table-card {
     background: var(--surface);
     border: 1px solid var(--cyan-dim);
@@ -181,7 +206,7 @@
   .ring-secs { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .ring-secs .t { font-size: 34px; font-weight: 800; line-height: 1; }
   .ring-secs .u { font-size: 9px; letter-spacing: 0.18em; color: var(--ink-3); font-weight: 700; margin-top: 3px; }
-  .clock-meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .clock-zone .clock-meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .shot-type { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: var(--ink-2); }
   .shot-type.break60 { color: var(--gold); }
   .cv-line { font-size: 11px; color: var(--ink-3); letter-spacing: 0.04em; }
@@ -204,27 +229,23 @@
   .player .ext.used { color: var(--ink-3); text-decoration: line-through; }
   .player .score { font-size: 18px; font-weight: 800; min-width: 26px; text-align: right; }
 
-  /* ---- middle column: dashboard section ---- */
+  /* ---- middle: dashboard ---- */
   .dash-panel { padding: 16px 18px 18px; }
   .dash-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
   .dash-head .t { font-size: 12px; font-weight: 800; letter-spacing: 0.2em; color: var(--cyan); }
   .dash-head .s { font-size: 10px; letter-spacing: 0.12em; color: var(--ink-3); font-weight: 700; }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
-  .stat {
-    background: var(--surface-2); padding: 10px 14px;
-    border: 1px solid rgba(0, 212, 255, 0.2);
-  }
+  .stat { background: var(--surface-2); padding: 10px 14px; border: 1px solid rgba(0, 212, 255, 0.2); }
   .stat .k { font-size: 9px; letter-spacing: 0.14em; color: var(--ink-2); font-weight: 700; }
   .stat .v { font-size: 22px; font-weight: 800; margin-top: 2px; }
   .stat .v small { font-size: 11px; font-weight: 700; color: var(--ink-2); letter-spacing: 0.08em; }
   .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 
-  /* ---- right strip: event feed ---- */
+  /* ---- right: feed strip ---- */
   .feed-strip {
     position: sticky; top: 14px;
     max-height: calc(100vh - 28px);
     display: flex; flex-direction: column;
-    padding: 0;
     overflow: hidden;
   }
   .feed-head {
@@ -273,7 +294,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE FEED · TABLES 2–6 SIMULATED</div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED</div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -288,27 +309,51 @@
 
   <div class="layout">
 
-    <!-- LEFT: video + live table -->
+    <!-- LEFT: source + vision + live table -->
     <div class="left-col">
       <div class="glow-panel video-panel">
+        <div class="mode-tabs" role="tablist">
+          <button class="btn active" data-mode="camera">CAMERA</button>
+          <button class="btn" data-mode="file">VIDEO FILE</button>
+          <button class="btn" data-mode="youtube">YOUTUBE</button>
+        </div>
+
         <div class="video-frame">
-          <div id="yt-player"></div>
+          <div id="yt-player" hidden></div>
+          <video id="cv-video" playsinline muted></video>
+          <canvas id="cv-overlay"></canvas>
           <div class="video-fallback" id="video-fallback" hidden>
-            <div class="t" id="fallback-title">VIDEO UNAVAILABLE</div>
-            <div class="d" id="fallback-detail">The YouTube player failed to load. Table 1 holds in FEED LOST until the feed returns.</div>
+            <div class="t" id="fallback-title">NO SOURCE</div>
+            <div class="d" id="fallback-detail">Start the camera or load a video.</div>
           </div>
         </div>
+
         <div class="video-meta">
           <span class="feed-state lost" id="feed-state">FEED IDLE</span>
           <span class="video-time num" id="video-time">--:--</span>
         </div>
-        <div class="url-row">
+
+        <!-- camera mode controls -->
+        <div class="src-row" id="camera-controls">
+          <button class="btn" id="btn-camera">START CAMERA</button>
+          <button class="btn" id="btn-flip" disabled>FLIP</button>
+        </div>
+
+        <!-- file mode controls -->
+        <div class="src-row" id="file-controls" hidden>
+          <button class="btn" id="btn-file">CHOOSE VIDEO FILE</button>
+          <input type="file" id="file-input" accept="video/*">
+          <span class="video-time" id="file-name"></span>
+        </div>
+
+        <!-- youtube mode controls -->
+        <div class="url-row" id="yt-controls" hidden>
           <input id="video-url" class="url-input" type="text" spellcheck="false" autocomplete="off" disabled
             placeholder="YouTube URL or video ID" aria-label="Video source URL">
           <button class="btn" id="btn-edit-url">EDIT</button>
           <button class="btn" id="btn-load-url" disabled>LOAD</button>
         </div>
-        <div class="annot-row">
+        <div class="annot-row" id="yt-annot" hidden>
           <button class="btn" id="btn-annotate">ANNOTATE MODE</button>
           <button class="btn" id="btn-export">EXPORT TRACK</button>
           <span class="video-time" id="annot-count"></span>
@@ -319,15 +364,55 @@
           <kbd>B</kbd> break shot · <kbd>T</kbd> turn changes hands · <kbd>E</kbd> extension called ·
           <kbd>G</kbd> game won by player at table · <kbd>Z</kbd> undo last<br>
           Events save to this browser (localStorage). EXPORT TRACK copies the JSON — paste it into
-          <span class="num">LIVE_TRACK.events</span> in this file to bake it in. The CV pipeline will
-          emit this exact format.
+          <span class="num">LIVE_TRACK.events</span> in this file to bake it in. The CV pipeline emits this exact format.
         </div>
       </div>
 
-      <div class="table-card live-card" id="live-card"><!-- rendered by JS --></div>
+      <!-- vision control panel (camera + file modes) -->
+      <div class="glow-panel vision-panel" id="vision-panel">
+        <div class="vp-head"><span>VISION ENGINE</span><span class="state num" id="vp-state">OFF</span></div>
+        <div class="vp-grid">
+          <div class="vp-field"><label>ANALYSIS FPS</label><input class="num-input" id="cfg-fps" type="number" min="1" max="30" step="1" value="12"></div>
+          <div class="vp-field"><label>IDLE FPS (ADAPTIVE)</label><input class="num-input" id="cfg-idlefps" type="number" min="1" max="30" step="1" value="3"></div>
+          <div class="vp-field"><label>RESOLUTION</label>
+            <select class="sel-input" id="cfg-res">
+              <option value="160">160 px (fastest)</option>
+              <option value="240" selected>240 px</option>
+              <option value="320">320 px (finest)</option>
+            </select>
+          </div>
+          <div class="vp-field"><label>MOTION SENSITIVITY <span class="num" id="cfg-sens-val">5</span></label>
+            <input id="cfg-sens" type="range" min="1" max="10" step="1" value="5"></div>
+          <div class="vp-field"><label>REST HOLD (MS)</label><input class="num-input" id="cfg-rest" type="number" min="100" max="5000" step="100" value="700"></div>
+          <div class="vp-field"><label>ADDRESS HOLD (MS)</label><input class="num-input" id="cfg-address" type="number" min="200" max="5000" step="100" value="1200"></div>
+          <div class="vp-field"><label>SHOT CLOCK (S)</label><input class="num-input" id="cfg-clock" type="number" min="5" max="120" step="5" value="30"></div>
+          <div class="vp-field"><label>ML PERSON DETECT</label>
+            <select class="sel-input" id="cfg-person">
+              <option value="0" selected>OFF (no model)</option>
+              <option value="1">ON — 1 fps</option>
+              <option value="2">ON — 2 fps</option>
+            </select>
+          </div>
+        </div>
+        <div class="vp-meters">
+          <div class="meter"><div class="k">MEASURED FPS</div><div class="v num" id="m-fps">0</div></div>
+          <div class="meter"><div class="k">FRAME COST</div><div class="v num" id="m-cost">— ms</div></div>
+          <div class="meter"><div class="k">ADAPTIVE</div><div class="v num" id="m-adapt">FULL</div></div>
+          <div class="meter"><div class="k">MOTION ENERGY</div><div class="v num" id="m-motion">0</div><div class="bar"><i id="m-motion-bar"></i></div></div>
+          <div class="meter"><div class="k">TABLE LOCK</div><div class="v num" id="m-table">—</div></div>
+          <div class="meter"><div class="k">BALLS / PERSONS</div><div class="v num" id="m-objs">0 / —</div></div>
+        </div>
+        <div class="vp-actions">
+          <button class="btn" id="btn-adaptive">ADAPTIVE: ON</button>
+          <button class="btn" id="btn-ext-live">EXTENSION +30</button>
+          <button class="btn" id="btn-reset-live">RESET CLOCK</button>
+        </div>
+      </div>
+
+      <div class="table-card live-card" id="live-card"></div>
     </div>
 
-    <!-- MIDDLE: simulated dashboard section -->
+    <!-- MIDDLE: simulated dashboard -->
     <div class="glow-panel dash-panel">
       <div class="dash-head">
         <span class="t">ALL TABLES</span>
@@ -343,7 +428,7 @@
       <div class="tables" id="tables"></div>
     </div>
 
-    <!-- RIGHT: event feed strip -->
+    <!-- RIGHT: feed strip -->
     <div class="glow-panel feed-strip">
       <div class="feed-head">
         <span class="t">CV EVENT FEED</span>
@@ -355,39 +440,36 @@
   </div>
 
   <footer>
-    POOL WATCHER — concept dashboard for camera-based shot clock officiating. Table 1 is synced to the embedded match video; its event track is hand-annotated until the CV pipeline lands (same JSON contract). Tables 2–6 run the simulator. Rules modeled: 30s standard / 60s after the break, one 30s extension per player per rack.
+    POOL WATCHER — camera-based shot clock officiating, live in the browser. Table 1 runs the real vision engine (classical CV: cloth segmentation, ball blobs, motion differencing, intrusion-based address detection; optional in-browser person model) on your camera or a video file. YouTube mode uses time-keyed annotation tracks (embeds are pixel-sealed cross-origin). Tables 2–6 are simulated. Rules modeled: 30s standard, one 30s extension per rack.
   </footer>
 </div>
 
 <script>
 "use strict";
 /* ============================================================
-   Pool Watcher PW-01 v2
-   - Table 1: LIVE — synced to the embedded YouTube match via the
-     IFrame API clock. Its events come from LIVE_TRACK (hand-
-     annotated for now; the CV pipeline emits the same format).
-   - Tables 2–6: simulator (same state machine).
+   Pool Watcher PW-01 v3 — live vision MVP
+   Table 1 sources:
+   - CAMERA / VIDEO FILE: real-time vision engine on readable pixels
+     (classical CV + optional in-browser person model)
+   - YOUTUBE: embed + time-keyed annotation track (pixels are sealed
+     cross-origin, so live CV is impossible there by browser design)
+   Tables 2–6: simulator.
    ============================================================ */
 
 const RULES = { standardShot: 30, afterBreak: 60, extension: 30 };
 
-/* ---------------- LIVE TRACK ----------------
-   Event contract (what the CV pipeline will emit):
-   { t: <video seconds>, e: "ADDRESS"|"SHOT"|"BREAK"|"TURN"|"EXT"|"GAME" }
-   Events must be time-sorted. State at any video time = deterministic
-   replay of all events <= t, so seeking always reconciles.        */
 const LIVE_TRACK = {
   videoId: "N_oxfCVIJtk",
-  players: ["Player 1", "Player 2"],   // set real names once known
+  players: ["Player 1", "Player 2"],
   raceTo: 9,
-  events: []                            // paste EXPORT TRACK output here
+  events: []
 };
 
-/* ---------------- shared feed ---------------- */
+/* ---------------- feed ---------------- */
 const feedEl = document.getElementById("feed");
 const feedCountEl = document.getElementById("feed-count");
 let feedTotal = 0;
-function fmtClock(d) {
+function fmtClockTime(d) {
   return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
 }
 function pushFeed(label, isLive, ev, cls) {
@@ -396,7 +478,7 @@ function pushFeed(label, isLive, ev, cls) {
   item.className = "feed-item" + (cls ? " " + cls : "");
   item.innerHTML = '<div class="row1"><span class="tno' + (isLive ? " live" : "") + '"></span><span class="ts num"></span></div><span class="ev"></span>';
   item.querySelector(".tno").textContent = label;
-  item.querySelector(".ts").textContent = fmtClock(new Date());
+  item.querySelector(".ts").textContent = fmtClockTime(new Date());
   item.querySelector(".ev").textContent = ev;
   const prev = feedEl.querySelector(".latest");
   if (prev) prev.classList.remove("latest");
@@ -404,11 +486,11 @@ function pushFeed(label, isLive, ev, cls) {
   feedEl.prepend(item);
   while (feedEl.children.length > 120) feedEl.lastChild.remove();
   feedCountEl.textContent = feedTotal + " EVENTS";
-  if (feedEl.scrollTop < 30) feedEl.scrollTop = 0;   // stay pinned to newest unless user scrolled away
+  if (feedEl.scrollTop < 30) feedEl.scrollTop = 0;
 }
 
 /* ============================================================
-   SIM TABLES 2–6 (unchanged state machine)
+   SIM TABLES 2–6
    ============================================================ */
 const NAMES = [
   ["S. Souquet", "F. Sanchez-Ruiz"], ["E. Kaci", "M. Konrad"],
@@ -421,7 +503,7 @@ const shotTimes = [];
 
 class Table {
   constructor(i) {
-    this.no = i + 2;                      // sim tables are 2..6
+    this.no = i + 2;
     this.players = NAMES[i % NAMES.length].map(n => ({ name: n, score: 0, ext: true }));
     this.raceTo = pick([9, 10, 11]);
     this.turn = Math.round(Math.random());
@@ -515,27 +597,603 @@ class Table {
 }
 
 /* ============================================================
-   LIVE TABLE 1 — deterministic replay of LIVE_TRACK over video time
+   SOURCE MODES
    ============================================================ */
-const live = {
-  feed: "IDLE",              // IDLE | PLAYING | PAUSED | BUFFERING | LOST
-  videoT: 0,
-  state: null,               // computed by replay()
-  annotate: false,
-  draft: [],                 // annotate-mode events (localStorage-backed)
-  lastAnnounced: -1,
+const MODE = { current: "camera" };
+const els = {
+  ytPlayer: document.getElementById("yt-player"),
+  cvVideo: document.getElementById("cv-video"),
+  cvOverlay: document.getElementById("cv-overlay"),
+  cameraControls: document.getElementById("camera-controls"),
+  fileControls: document.getElementById("file-controls"),
+  ytControls: document.getElementById("yt-controls"),
+  ytAnnot: document.getElementById("yt-annot"),
+  visionPanel: document.getElementById("vision-panel"),
+  fallback: document.getElementById("video-fallback"),
+};
+function setMode(mode) {
+  MODE.current = mode;
+  document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+  const yt = mode === "youtube";
+  els.ytPlayer.hidden = !yt;
+  els.cvVideo.hidden = yt;
+  els.cvOverlay.hidden = yt;
+  els.cameraControls.hidden = mode !== "camera";
+  els.fileControls.hidden = mode !== "file";
+  els.ytControls.hidden = !yt;
+  els.ytAnnot.hidden = !yt;
+  els.visionPanel.hidden = yt;
+  document.getElementById("annot-help").classList.remove("show");
+  hideFallback();
+  if (yt) {
+    vision.stop();
+    stopCamera();
+    if (!ytLoadStarted) loadYT();
+    setFeed(ytReady ? "PAUSED" : "IDLE");
+  } else {
+    if (ytReady && ytPlayer.pauseVideo) try { ytPlayer.pauseVideo(); } catch (e) {}
+    if (mode === "file" && els.cvVideo.src) { vision.start(); }
+    else if (mode === "camera" && cameraStream) { vision.start(); }
+    else {
+      setFeed("IDLE");
+      showFallback("NO SOURCE", mode === "camera" ? "Press START CAMERA and point it at a pool table." : "Choose a video file — a clip you recorded works great.");
+    }
+  }
+  pushFeed("TABLE 1", true, "SOURCE_MODE — " + mode.toUpperCase(), "gold");
+}
+document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+function showFallback(title, detail) {
+  if (title) document.getElementById("fallback-title").textContent = title;
+  if (detail) document.getElementById("fallback-detail").textContent = detail;
+  els.fallback.hidden = false;
+}
+function hideFallback() { els.fallback.hidden = true; }
+function setFeed(state) {
+  const el = document.getElementById("feed-state");
+  el.textContent = "FEED " + state;
+  el.className = "feed-state " + (state === "PLAYING" || state === "LIVE" ? "playing" : state === "LOST" ? "lost" : "paused");
+  live.feed = state;
+}
+
+/* ---------------- camera ---------------- */
+let cameraStream = null, cameraFacing = "environment";
+async function startCamera() {
+  try {
+    stopCamera();
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: cameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+    } catch (e1) {
+      // some devices reject shaped constraints — fall back to any camera
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
+    els.cvVideo.srcObject = cameraStream;
+    await els.cvVideo.play();
+    hideFallback();
+    setFeed("LIVE");
+    document.getElementById("btn-camera").textContent = "STOP CAMERA";
+    document.getElementById("btn-flip").disabled = false;
+    pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — camera live (" + cameraFacing + ")", "gold");
+    vision.start();
+  } catch (err) {
+    setFeed("LOST");
+    showFallback("CAMERA UNAVAILABLE", (err && err.name) === "NotAllowedError"
+      ? "Camera permission was denied. Allow camera access for this site and try again."
+      : "Could not open a camera: " + (err && err.message ? err.message : err));
+    pushFeed("TABLE 1", true, "FEED_LOST — camera unavailable", "foul");
+  }
+}
+function stopCamera() {
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  if (els.cvVideo.srcObject) els.cvVideo.srcObject = null;
+  document.getElementById("btn-camera").textContent = "START CAMERA";
+  document.getElementById("btn-flip").disabled = true;
+}
+document.getElementById("btn-camera").addEventListener("click", () => {
+  if (cameraStream) { vision.stop(); stopCamera(); setFeed("IDLE"); showFallback("NO SOURCE", "Press START CAMERA and point it at a pool table."); }
+  else startCamera();
+});
+document.getElementById("btn-flip").addEventListener("click", () => {
+  cameraFacing = cameraFacing === "environment" ? "user" : "environment";
+  startCamera();
+});
+
+/* ---------------- video file ---------------- */
+document.getElementById("btn-file").addEventListener("click", () => document.getElementById("file-input").click());
+document.getElementById("file-input").addEventListener("change", (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  els.cvVideo.srcObject = null;
+  els.cvVideo.src = URL.createObjectURL(f);
+  els.cvVideo.controls = true;
+  els.cvVideo.loop = true;
+  els.cvVideo.play().catch(() => {});
+  document.getElementById("file-name").textContent = f.name;
+  hideFallback();
+  setFeed("PLAYING");
+  pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — file loaded: " + f.name, "gold");
+  vision.start();
+});
+
+/* ============================================================
+   VISION ENGINE — classical CV on readable pixels
+   Per tick: downscale frame → cloth-color mask → table bbox →
+   non-cloth blobs inside table (balls vs edge intrusion) →
+   frame-difference motion energy → state machine → clock.
+   No neural net required; optional person model is additive.
+   ============================================================ */
+const cfg = {
+  fps: 12, idleFps: 3, adaptive: true, res: 240,
+  sens: 5,               // 1..10 → motion threshold
+  restHoldMs: 700, addressHoldMs: 1200, clockSecs: 30,
+  personFps: 0,
+};
+/* A lone rolling ball changes only ~0.2–0.7% of table pixels, so thresholds
+   run very low; the sensitivity slider spans camera-noise floor to broadcast-safe. */
+function movingThresh() { return 0.0075 * Math.pow(0.82, cfg.sens); }  // sens 1→0.0062 … 10→0.0010
+function restThresh() { return movingThresh() * 0.4; }
+
+const vision = {
+  running: false, lastTick: 0, lastFrameAt: 0,
+  an: document.createElement("canvas"), anCtx: null,
+  prevGray: null, prevW: 0,
+  clothHue: null, clothLockFrames: 0,
+  table: null,           // {x,y,w,h} in analysis px
+  balls: [], intrusion: false,
+  motionEma: 0, restSince: 0, addressSince: 0, idleSince: 0,
+  state: "OFF",          // OFF|SEARCHING|READY|ADDRESSING|ROLLING|EXPIRED
+  clockStart: 0, clockLimit: 30, extUsed: false,
+  lastEvent: "—", measuredFps: 0, frameCost: 0, fpsWindow: [],
+  persons: [], personModel: null, personBusy: false, lastPersonAt: 0,
+
+  start() {
+    if (this.running) return;
+    this.running = true;
+    this.setState("SEARCHING");
+    this.clothHue = null; this.table = null; this.prevGray = null;
+    pushFeed("TABLE 1", true, "VISION_ENGINE — started");
+  },
+  stop() {
+    if (!this.running) return;
+    this.running = false;
+    this.setState("OFF");
+    clearOverlay();
+  },
+  setState(s) {
+    if (this.state === s) return;
+    this.state = s;
+    document.getElementById("vp-state").textContent = s;
+  },
+
+  tick(now) {
+    if (!this.running) return;
+    const v = els.cvVideo;
+    if (!v.videoWidth || v.paused || v.ended) {
+      if (MODE.current === "file" && v.paused && v.src) setFeed("PAUSED");
+      return;
+    }
+    if (MODE.current === "file") setFeed("PLAYING");
+    // adaptive rate: idle when nothing has happened for 3s in READY
+    const idle = cfg.adaptive && this.state === "READY" && (now - this.idleSince > 3000);
+    const targetFps = idle ? Math.min(cfg.idleFps, cfg.fps) : cfg.fps;
+    document.getElementById("m-adapt").textContent = idle ? "IDLE " + targetFps : "FULL " + cfg.fps;
+    if (now - this.lastTick < 1000 / targetFps) return;
+    this.fpsWindow.push(now);
+    while (this.fpsWindow.length && now - this.fpsWindow[0] > 2000) this.fpsWindow.shift();
+    this.measuredFps = this.fpsWindow.length / 2;
+    this.lastTick = now;
+
+    const t0 = performance.now();
+    this.analyze(v, now);
+    this.frameCost = performance.now() - t0;
+    this.machine(now);
+    drawOverlay(this);
+    this.maybePersons(v, now);
+    this.meters();
+  },
+
+  analyze(v, now) {
+    const aw = cfg.res, ah = Math.max(2, Math.round(aw * v.videoHeight / v.videoWidth));
+    if (this.an.width !== aw || this.an.height !== ah) {
+      this.an.width = aw; this.an.height = ah;
+      this.anCtx = this.an.getContext("2d", { willReadFrequently: true });
+      this.prevGray = null;
+    }
+    this.anCtx.drawImage(v, 0, 0, aw, ah);
+    const img = this.anCtx.getImageData(0, 0, aw, ah);
+    const d = img.data, n = aw * ah;
+
+    // --- pass 1: hue histogram (center region) for cloth auto-calibration ---
+    const hueBins = new Float32Array(36);
+    const hsv = new Float32Array(n * 2);      // [hue, satOk] packed
+    const gray = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+      gray[i] = (r * 3 + g * 4 + b) >> 3;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
+      let h = 0;
+      if (c > 0) {
+        if (mx === r) h = ((g - b) / c) % 6;
+        else if (mx === g) h = (b - r) / c + 2;
+        else h = (r - g) / c + 4;
+        h = (h * 60 + 360) % 360;
+      }
+      const sat = mx ? c / mx : 0;
+      hsv[i * 2] = h;
+      hsv[i * 2 + 1] = (sat > 0.2 && mx > 30) ? 1 : 0;
+      if (hsv[i * 2 + 1]) {
+        const x = i % aw, y = (i / aw) | 0;
+        if (x > aw * 0.1 && x < aw * 0.9 && y > ah * 0.1 && y < ah * 0.9) hueBins[(h / 10) | 0]++;
+      }
+    }
+    let best = 0;
+    for (let b = 1; b < 36; b++) if (hueBins[b] > hueBins[best]) best = b;
+    const domFrac = (hueBins[(best + 35) % 36] + hueBins[best] + hueBins[(best + 1) % 36]) / n;
+    const domHue = best * 10 + 5;
+    if (this.clothHue === null || Math.abs(((domHue - this.clothHue + 540) % 360) - 180) > 30) {
+      if (domFrac > 0.12) { this.clothHue = domHue; this.clothLockFrames = 0; }
+    } else {
+      this.clothHue = this.clothHue * 0.9 + domHue * 0.1;
+    }
+
+    // --- pass 2: cloth mask + coarse grid for table bbox ---
+    const GW = 24, GH = 14;
+    const cellTotal = new Uint16Array(GW * GH), cellCloth = new Uint16Array(GW * GH);
+    const cloth = new Uint8Array(n);
+    if (this.clothHue !== null) {
+      for (let i = 0; i < n; i++) {
+        if (hsv[i * 2 + 1]) {
+          const dh = Math.abs(((hsv[i * 2] - this.clothHue + 540) % 360) - 180);
+          if (dh < 18) cloth[i] = 1;
+        }
+        const x = i % aw, y = (i / aw) | 0;
+        const ci = ((y * GH / ah) | 0) * GW + ((x * GW / aw) | 0);
+        cellTotal[ci]++;
+        if (cloth[i]) cellCloth[ci]++;
+      }
+    }
+    // largest connected cloth-cell region (BFS)
+    const isClothCell = new Uint8Array(GW * GH);
+    for (let ci = 0; ci < GW * GH; ci++) isClothCell[ci] = cellTotal[ci] && (cellCloth[ci] / cellTotal[ci] > 0.5) ? 1 : 0;
+    const seen = new Uint8Array(GW * GH);
+    let bestRegion = null;
+    for (let ci = 0; ci < GW * GH; ci++) {
+      if (!isClothCell[ci] || seen[ci]) continue;
+      const q = [ci]; seen[ci] = 1;
+      let minX = GW, maxX = 0, minY = GH, maxY = 0, count = 0;
+      while (q.length) {
+        const c = q.pop(); count++;
+        const cx = c % GW, cy = (c / GW) | 0;
+        if (cx < minX) minX = cx; if (cx > maxX) maxX = cx;
+        if (cy < minY) minY = cy; if (cy > maxY) maxY = cy;
+        [[cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]].forEach(([nx, ny]) => {
+          if (nx >= 0 && nx < GW && ny >= 0 && ny < GH) {
+            const nc = ny * GW + nx;
+            if (isClothCell[nc] && !seen[nc]) { seen[nc] = 1; q.push(nc); }
+          }
+        });
+      }
+      if (!bestRegion || count > bestRegion.count) bestRegion = { count, minX, maxX, minY, maxY };
+    }
+    const hadTable = !!this.table;
+    if (bestRegion && bestRegion.count >= 18) {
+      // shrink half a cell per side: the cell bbox overshoots the cloth,
+      // and overshoot strips otherwise read as permanent edge "intrusion"
+      const cw = aw / GW, ch = ah / GH;
+      this.table = {
+        x: bestRegion.minX * cw + cw / 2, y: bestRegion.minY * ch + ch / 2,
+        w: (bestRegion.maxX - bestRegion.minX + 1) * cw - cw,
+        h: (bestRegion.maxY - bestRegion.minY + 1) * ch - ch,
+        frac: bestRegion.count / (GW * GH),
+      };
+      this.clothLockFrames++;
+    } else {
+      this.clothLockFrames = Math.max(0, this.clothLockFrames - 2);
+      if (this.clothLockFrames === 0) this.table = null;
+    }
+    if (!hadTable && this.table) pushFeed("TABLE 1", true, "TABLE_ACQUIRED — cloth lock " + Math.round(this.table.frac * 100) + "% of frame", "gold");
+    if (hadTable && !this.table) pushFeed("TABLE 1", true, "FEED_LOST — table lost from view", "foul");
+
+    // --- pass 3: motion energy inside table bbox ---
+    let energy = 0;
+    if (this.table && this.prevGray && this.prevW === aw) {
+      const { x, y, w, h } = this.table;
+      let changed = 0, total = 0;
+      const x0 = x | 0, y0 = y | 0, x1 = (x + w) | 0, y1 = (y + h) | 0;
+      for (let yy = y0; yy < y1; yy++) {
+        for (let xx = x0; xx < x1; xx++) {
+          const i = yy * aw + xx;
+          total++;
+          if (Math.abs(gray[i] - this.prevGray[i]) > 24) changed++;
+        }
+      }
+      energy = total ? changed / total : 0;
+    }
+    this.prevGray = gray; this.prevW = aw;
+    this.motionEma = this.motionEma * 0.6 + energy * 0.4;
+
+    // --- pass 4: non-cloth blobs inside table (balls + intrusion) ---
+    this.balls = []; this.intrusion = false;
+    if (this.table) {
+      const { x, y, w, h } = this.table;
+      const x0 = Math.max(0, x | 0), y0 = Math.max(0, y | 0);
+      const x1 = Math.min(aw, (x + w) | 0), y1 = Math.min(ah, (y + h) | 0);
+      const tableArea = (x1 - x0) * (y1 - y0);
+      const labels = new Int32Array(n).fill(-1);
+      const blobs = [];
+      for (let yy = y0; yy < y1; yy++) {
+        for (let xx = x0; xx < x1; xx++) {
+          const i = yy * aw + xx;
+          if (cloth[i] || labels[i] !== -1 || gray[i] < 14) continue;
+          // flood fill
+          const stack = [i]; labels[i] = blobs.length;
+          let area = 0, sx = 0, sy = 0, mnx = xx, mxx = xx, mny = yy, mxy = yy;
+          let sr = 0, sg = 0, sb = 0, edge = false;
+          while (stack.length) {
+            const p = stack.pop(); area++;
+            const px = p % aw, py = (p / aw) | 0;
+            sx += px; sy += py;
+            sr += d[p * 4]; sg += d[p * 4 + 1]; sb += d[p * 4 + 2];
+            if (px < mnx) mnx = px; if (px > mxx) mxx = px;
+            if (py < mny) mny = py; if (py > mxy) mxy = py;
+            if (px <= x0 + 1 || px >= x1 - 2 || py <= y0 + 1 || py >= y1 - 2) edge = true;
+            if (area > tableArea * 0.5) break;
+            [[px - 1, py], [px + 1, py], [px, py - 1], [px, py + 1]].forEach(([qx, qy]) => {
+              if (qx >= x0 && qx < x1 && qy >= y0 && qy < y1) {
+                const q = qy * aw + qx;
+                if (!cloth[q] && labels[q] === -1 && gray[q] >= 14) { labels[q] = blobs.length; stack.push(q); }
+              }
+            });
+          }
+          blobs.push({ area, cx: sx / area, cy: sy / area, mnx, mxx, mny, mxy, edge,
+            r: sr / area | 0, g: sg / area | 0, b: sb / area | 0 });
+        }
+      }
+      const minBall = Math.max(4, tableArea * 0.0004), maxBall = tableArea * 0.012;
+      // intrusion = an edge-touching blob that penetrates the table interior
+      // (rail/background slivers hug the border and never reach this ring)
+      const mIn = 0.14 * Math.min(x1 - x0, y1 - y0);
+      const ix0 = x0 + mIn, ix1 = x1 - mIn, iy0 = y0 + mIn, iy1 = y1 - mIn;
+      for (const bl of blobs) {
+        const bw = bl.mxx - bl.mnx + 1, bh = bl.mxy - bl.mny + 1;
+        if (bl.edge) {
+          if (bl.area > tableArea * 0.02 &&
+              bl.mxx > ix0 && bl.mnx < ix1 && bl.mxy > iy0 && bl.mny < iy1) this.intrusion = true;
+          continue;
+        }
+        if (bl.area >= minBall && bl.area <= maxBall && bw / bh < 2.6 && bh / bw < 2.6) {
+          this.balls.push(bl);
+        }
+      }
+      if (this.balls.length > 20) this.balls.length = 20;
+    }
+  },
+
+  machine(now) {
+    const moving = this.motionEma > movingThresh();
+    const still = this.motionEma < restThresh();
+    if (still) { if (!this.restSince) this.restSince = now; } else this.restSince = 0;
+    const atRest = this.restSince && (now - this.restSince > cfg.restHoldMs);
+    if (moving || this.intrusion) this.idleSince = now;
+
+    if (!this.table) {
+      if (this.state !== "SEARCHING") { this.setState("SEARCHING"); this.lastEvent = "SEARCHING FOR TABLE"; }
+      return;
+    }
+    switch (this.state) {
+      case "SEARCHING":
+        this.setState("READY");
+        this.lastEvent = "INIT — table locked, awaiting play";
+        break;
+      case "READY":
+        if (this.intrusion && atRest) {
+          if (!this.addressSince) this.addressSince = now;
+          if (now - this.addressSince > cfg.addressHoldMs) {
+            this.setState("ADDRESSING");
+            this.clockStart = now; this.clockLimit = cfg.clockSecs; this.extUsed = false;
+            this.lastEvent = "PLAYER_ADDRESSING — clock " + this.clockLimit + "s";
+            pushFeed("TABLE 1", true, this.lastEvent);
+          }
+        } else {
+          this.addressSince = 0;
+          if (moving) { this.setState("ROLLING"); this.lastEvent = "BALLS_MOVING"; }
+        }
+        break;
+      case "ADDRESSING": {
+        const elapsed = (now - this.clockStart) / 1000;
+        if (moving && this.motionEma > movingThresh() * 1.6) {
+          this.setState("ROLLING");
+          shotTimes.push(elapsed);
+          this.lastEvent = "SHOT_TAKEN — " + elapsed.toFixed(1) + "s used";
+          pushFeed("TABLE 1", true, this.lastEvent, "gold");
+        } else if (elapsed >= this.clockLimit) {
+          this.setState("EXPIRED");
+          fouls++;
+          this.lastEvent = "SHOT_CLOCK_FOUL — clock expired";
+          pushFeed("TABLE 1", true, this.lastEvent, "foul");
+          setTimeout(() => { if (this.state === "EXPIRED") { this.setState("READY"); this.addressSince = 0; } }, 4000);
+        }
+        break;
+      }
+      case "ROLLING":
+        if (atRest) {
+          this.setState("READY");
+          this.addressSince = 0;
+          this.lastEvent = "BALLS_AT_REST — clock held, awaiting address";
+          pushFeed("TABLE 1", true, this.lastEvent);
+        }
+        break;
+      case "EXPIRED":
+        break;
+    }
+  },
+
+  clockRemaining(now) {
+    if (this.state !== "ADDRESSING") return this.clockLimit;
+    return Math.max(0, this.clockLimit - (now - this.clockStart) / 1000);
+  },
+
+  async maybePersons(v, now) {
+    if (!cfg.personFps) { this.persons = []; return; }
+    if (this.personBusy || now - this.lastPersonAt < 1000 / cfg.personFps) return;
+    this.personBusy = true;
+    try {
+      if (!this.personModel) {
+        pushFeed("TABLE 1", true, "ML — loading person model (coco-ssd)…");
+        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js");
+        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+        this.personModel = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+        pushFeed("TABLE 1", true, "ML — person model ready", "gold");
+      }
+      const preds = await this.personModel.detect(v);
+      this.persons = preds.filter(p => p.class === "person" && p.score > 0.5)
+        .map(p => ({ x: p.bbox[0] / v.videoWidth, y: p.bbox[1] / v.videoHeight, w: p.bbox[2] / v.videoWidth, h: p.bbox[3] / v.videoHeight }));
+      this.lastPersonAt = now;
+    } catch (err) {
+      cfg.personFps = 0;
+      document.getElementById("cfg-person").value = "0";
+      this.persons = [];
+      pushFeed("TABLE 1", true, "ML — person model unavailable (" + (err && err.message ? err.message : "load failed") + "); continuing without it", "foul");
+    } finally {
+      this.personBusy = false;
+    }
+  },
+
+  meters() {
+    document.getElementById("m-fps").textContent = this.measuredFps.toFixed(1);
+    document.getElementById("m-cost").textContent = this.frameCost.toFixed(1) + " ms";
+    document.getElementById("m-motion").textContent = (this.motionEma * 1000).toFixed(2);
+    document.getElementById("m-motion-bar").style.width = Math.min(100, this.motionEma / (movingThresh() * 2) * 100) + "%";
+    document.getElementById("m-table").textContent = this.table ? Math.round(this.table.frac * 100) + "%" : "—";
+    document.getElementById("m-objs").textContent = this.balls.length + " / " + (cfg.personFps ? this.persons.length : "—");
+  },
 };
 
-/* ---- video source: default from LIVE_TRACK, overridable at runtime ---- */
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector('script[src="' + src + '"]')) return res();
+    const s = document.createElement("script");
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error("failed to load " + src));
+    document.head.appendChild(s);
+  });
+}
+
+/* ---------------- overlay drawing ---------------- */
+function clearOverlay() {
+  const c = els.cvOverlay, ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+}
+function drawOverlay(vs) {
+  const c = els.cvOverlay, v = els.cvVideo;
+  const dw = c.clientWidth, dh = c.clientHeight;
+  if (c.width !== dw * devicePixelRatio) { c.width = dw * devicePixelRatio; c.height = dh * devicePixelRatio; }
+  const ctx = c.getContext("2d");
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctx.clearRect(0, 0, dw, dh);
+  if (!v.videoWidth) return;
+  // object-fit: contain mapping
+  const vAR = v.videoWidth / v.videoHeight, dAR = dw / dh;
+  let ox = 0, oy = 0, sw = dw, sh = dh;
+  if (vAR > dAR) { sh = dw / vAR; oy = (dh - sh) / 2; } else { sw = dh * vAR; ox = (dw - sw) / 2; }
+  const sx = sw / vs.an.width, sy = sh / vs.an.height;
+
+  if (vs.table) {
+    const t = vs.table;
+    ctx.strokeStyle = "#00d4ff"; ctx.lineWidth = 2;
+    ctx.shadowColor = "rgba(0,212,255,0.8)"; ctx.shadowBlur = 8;
+    ctx.strokeRect(ox + t.x * sx, oy + t.y * sy, t.w * sx, t.h * sy);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#00d4ff";
+    ctx.font = "700 10px " + getComputedStyle(document.body).getPropertyValue("--font-num");
+    ctx.fillText("TABLE", ox + t.x * sx + 4, oy + t.y * sy + 12);
+  }
+  for (const b of vs.balls) {
+    const bx = ox + b.mnx * sx - 2, by = oy + b.mny * sy - 2;
+    const bw = (b.mxx - b.mnx + 1) * sx + 4, bh = (b.mxy - b.mny + 1) * sy + 4;
+    ctx.strokeStyle = "rgb(" + b.r + "," + b.g + "," + b.b + ")";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.strokeStyle = "rgba(255,255,255,0.65)"; ctx.lineWidth = 1;
+    ctx.strokeRect(bx - 1, by - 1, bw + 2, bh + 2);
+  }
+  if (vs.intrusion && vs.table) {
+    ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+    const t = vs.table;
+    ctx.strokeRect(ox + t.x * sx - 3, oy + t.y * sy - 3, t.w * sx + 6, t.h * sy + 6);
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#f5a623";
+    ctx.fillText("PLAYER AT TABLE", ox + t.x * sx + 4, oy + (t.y + t.h) * sy - 6);
+  }
+  for (const p of vs.persons) {
+    ctx.strokeStyle = "#f5a623"; ctx.lineWidth = 2;
+    ctx.strokeRect(ox + p.x * sw, oy + p.y * sh, p.w * sw, p.h * sh);
+    ctx.fillStyle = "#f5a623";
+    ctx.fillText("PLAYER", ox + p.x * sw + 4, oy + p.y * sh + 12);
+  }
+  // state chip
+  ctx.fillStyle = "rgba(8,13,26,0.75)";
+  ctx.fillRect(6, 6, 170, 22);
+  ctx.fillStyle = vs.state === "ADDRESSING" ? "#00d4ff" : vs.state === "EXPIRED" ? "#ff4444" : "#7eb8cc";
+  ctx.font = "800 11px " + getComputedStyle(document.body).getPropertyValue("--font-ui");
+  const clock = vs.state === "ADDRESSING" ? " · " + Math.ceil(vs.clockRemaining(performance.now())) + "s" : "";
+  ctx.fillText(vs.state + clock, 14, 21);
+}
+
+/* ---------------- control panel bindings ---------------- */
+function bindNum(id, key, min, max) {
+  const el = document.getElementById(id);
+  el.addEventListener("change", () => {
+    let v = Number(el.value);
+    if (!isFinite(v)) v = cfg[key];
+    v = Math.max(min, Math.min(max, v));
+    el.value = v;
+    cfg[key] = v;
+    pushFeed("TABLE 1", true, "CONFIG — " + key + " = " + v);
+  });
+}
+bindNum("cfg-fps", "fps", 1, 30);
+bindNum("cfg-idlefps", "idleFps", 1, 30);
+bindNum("cfg-rest", "restHoldMs", 100, 5000);
+bindNum("cfg-address", "addressHoldMs", 200, 5000);
+bindNum("cfg-clock", "clockSecs", 5, 120);
+document.getElementById("cfg-res").addEventListener("change", (e) => { cfg.res = Number(e.target.value); pushFeed("TABLE 1", true, "CONFIG — resolution = " + cfg.res + "px"); });
+document.getElementById("cfg-sens").addEventListener("input", (e) => {
+  cfg.sens = Number(e.target.value);
+  document.getElementById("cfg-sens-val").textContent = cfg.sens;
+});
+document.getElementById("cfg-person").addEventListener("change", (e) => { cfg.personFps = Number(e.target.value); });
+document.getElementById("btn-adaptive").addEventListener("click", (e) => {
+  cfg.adaptive = !cfg.adaptive;
+  e.target.textContent = "ADAPTIVE: " + (cfg.adaptive ? "ON" : "OFF");
+  e.target.classList.toggle("active", !cfg.adaptive);
+});
+document.getElementById("btn-ext-live").addEventListener("click", () => {
+  if (vision.state === "ADDRESSING" && !vision.extUsed) {
+    vision.extUsed = true; extsUsed++;
+    vision.clockLimit += RULES.extension;
+    pushFeed("TABLE 1", true, "EXTENSION — +30s (manual)", "gold");
+  }
+});
+document.getElementById("btn-reset-live").addEventListener("click", () => {
+  vision.addressSince = 0;
+  if (vision.state === "ADDRESSING" || vision.state === "EXPIRED") vision.setState("READY");
+  pushFeed("TABLE 1", true, "CLOCK_RESET — manual");
+});
+
+/* ============================================================
+   YOUTUBE MODE (annotation track playback — unchanged contract)
+   ============================================================ */
 let currentVideoId = LIVE_TRACK.videoId;
 try { currentVideoId = localStorage.getItem("pw01-video-id") || currentVideoId; } catch (e) {}
-
+const live = { feed: "IDLE", videoT: 0, annotate: false, draft: [], lastAnnounced: -1 };
 function draftKey() { return "pw01-live-track:" + currentVideoId; }
 function loadDraft() {
   try { live.draft = JSON.parse(localStorage.getItem(draftKey()) || "[]"); } catch (e) { live.draft = []; }
 }
 loadDraft();
-/* Baked-in events belong to LIVE_TRACK.videoId only — never applied to a swapped-in video. */
 function trackEvents() {
   return (currentVideoId === LIVE_TRACK.videoId && LIVE_TRACK.events.length) ? LIVE_TRACK.events : live.draft;
 }
@@ -543,16 +1201,13 @@ function saveDraft() {
   try { localStorage.setItem(draftKey(), JSON.stringify(live.draft)); } catch (e) {}
   document.getElementById("annot-count").textContent = trackEvents().length + " track events";
 }
-
-/* Replay events <= t into a table state. Deterministic → seeking just re-replays. */
 function replayLive(t) {
   const s = {
-    players: LIVE_TRACK.players.map(n => ({ name: n, score: 0, ext: true })),
+    players: LIVE_TRACK.players.map(nm => ({ name: nm, score: 0, ext: true })),
     turn: 0, phase: "AWAITING", nextIsBreak: true, afterBreak: false,
     limit: RULES.standardShot, addressT: null, lastEvent: "AWAITING CV TRACK",
   };
-  const evs = trackEvents();
-  for (const ev of evs) {
+  for (const ev of trackEvents()) {
     if (ev.t > t) break;
     switch (ev.e) {
       case "ADDRESS":
@@ -580,7 +1235,6 @@ function replayLive(t) {
       }
     }
   }
-  // clock from address timestamp
   s.clock = s.limit;
   if (s.phase === "ADDRESSING" && s.addressT !== null) {
     s.clock = s.limit - (t - s.addressT);
@@ -588,41 +1242,37 @@ function replayLive(t) {
   }
   return s;
 }
-
-function announceLive(t) {
-  // feed entries for track events as playback crosses them (not on seek-backwards)
-  const evs = trackEvents();
-  for (const ev of evs) {
+function announceYt(t) {
+  for (const ev of trackEvents()) {
     if (ev.t <= live.lastAnnounced) continue;
     if (ev.t > t) break;
     const names = { ADDRESS: "PLAYER_ADDRESSING", SHOT: "SHOT_TAKEN", BREAK: "BREAK_SHOT", TURN: "TURN_CHANGE", EXT: "EXTENSION", GAME: "GAME_OVER" };
     pushFeed("TABLE 1", true, names[ev.e] + " @ " + fmtVideoT(ev.t), ev.e === "GAME" || ev.e === "EXT" || ev.e === "BREAK" ? "gold" : undefined);
     live.lastAnnounced = ev.t;
   }
-  if (t < live.lastAnnounced) live.lastAnnounced = t;  // seeked backwards; allow re-announce
+  if (t < live.lastAnnounced) live.lastAnnounced = t;
 }
-
 function fmtVideoT(t) {
   const m = Math.floor(t / 60), s = Math.floor(t % 60);
   return m + ":" + String(s).padStart(2, "0");
 }
 
-/* ---------------- YouTube IFrame API ---------------- */
-let ytPlayer = null, ytReady = false;
+let ytPlayer = null, ytReady = false, ytLoadStarted = false;
 const YT_ERRORS = {
   2:   ["INVALID VIDEO ID", "YouTube rejected that video ID. Check the URL and LOAD another."],
   5:   ["PLAYER ERROR", "The HTML5 player hit an error. Try reloading, or LOAD another video."],
   100: ["VIDEO NOT FOUND", "That video is removed or private. LOAD another one."],
-  101: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video — some uploads on the same channel allow embedding."],
-  150: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video — some uploads on the same channel allow embedding."],
+  101: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video."],
+  150: ["EMBEDDING DISABLED", "The channel blocks this video from playing off-YouTube. LOAD a different video."],
 };
 window.onYouTubeIframeAPIReady = function () {
   ytPlayer = new YT.Player("yt-player", {
     videoId: currentVideoId,
     playerVars: { rel: 0, modestbranding: 1 },
     events: {
-      onReady: () => { ytReady = true; setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — video feed connected", "gold"); },
+      onReady: () => { ytReady = true; if (MODE.current === "youtube") setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — video feed connected", "gold"); },
       onStateChange: (e) => {
+        if (MODE.current !== "youtube") return;
         if (e.data === YT.PlayerState.PLAYING) { hideFallback(); setFeed("PLAYING"); }
         else if (e.data === YT.PlayerState.PAUSED) { setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_HOLD — playback paused"); }
         else if (e.data === YT.PlayerState.BUFFERING) setFeed("BUFFERING");
@@ -630,6 +1280,7 @@ window.onYouTubeIframeAPIReady = function () {
         else if (e.data === YT.PlayerState.CUED) { hideFallback(); setFeed("PAUSED"); }
       },
       onError: (e) => {
+        if (MODE.current !== "youtube") return;
         const [title, detail] = YT_ERRORS[e.data] || ["VIDEO UNAVAILABLE", "The player reported error " + e.data + ". LOAD another video."];
         setFeed("LOST");
         showFallback(title, detail);
@@ -638,40 +1289,26 @@ window.onYouTubeIframeAPIReady = function () {
     },
   });
 };
-function showFallback(title, detail) {
-  if (title) document.getElementById("fallback-title").textContent = title;
-  if (detail) document.getElementById("fallback-detail").textContent = detail;
-  document.getElementById("video-fallback").hidden = false;
-}
-function hideFallback() { document.getElementById("video-fallback").hidden = true; }
-(function loadYT() {
+function loadYT() {
+  ytLoadStarted = true;
   const tag = document.createElement("script");
   tag.src = "https://www.youtube.com/iframe_api";
-  tag.onerror = () => { setFeed("LOST"); showFallback(); pushFeed("TABLE 1", true, "FEED_LOST — YouTube unreachable", "foul"); };
+  tag.onerror = () => { if (MODE.current === "youtube") { setFeed("LOST"); showFallback("YOUTUBE UNREACHABLE", "The IFrame API could not load."); pushFeed("TABLE 1", true, "FEED_LOST — YouTube unreachable", "foul"); } };
   document.head.appendChild(tag);
-  setTimeout(() => { if (!ytReady && live.feed === "IDLE") { setFeed("LOST"); showFallback(); } }, 8000);
-})();
-
-function setFeed(state) {
-  live.feed = state;
-  const el = document.getElementById("feed-state");
-  el.textContent = "FEED " + state;
-  el.className = "feed-state " + (state === "PLAYING" ? "playing" : state === "LOST" ? "lost" : "paused");
+  setTimeout(() => { if (!ytReady && MODE.current === "youtube" && live.feed === "IDLE") { setFeed("LOST"); showFallback("YOUTUBE UNREACHABLE", "The IFrame API did not respond."); } }, 8000);
 }
 
-/* ---------------- video source input ---------------- */
+/* URL input */
 const urlInput = document.getElementById("video-url");
 const btnEditUrl = document.getElementById("btn-edit-url");
 const btnLoadUrl = document.getElementById("btn-load-url");
 urlInput.value = "https://youtu.be/" + currentVideoId;
-
 function parseYouTubeId(raw) {
   const s = raw.trim();
   if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
   const m = s.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/);
   return m ? m[1] : null;
 }
-
 btnEditUrl.addEventListener("click", () => {
   urlInput.disabled = !urlInput.disabled;
   btnLoadUrl.disabled = urlInput.disabled;
@@ -679,7 +1316,6 @@ btnEditUrl.addEventListener("click", () => {
   btnEditUrl.textContent = urlInput.disabled ? "EDIT" : "LOCK";
   if (!urlInput.disabled) { urlInput.focus(); urlInput.select(); }
 });
-
 function loadVideoFromInput() {
   const id = parseYouTubeId(urlInput.value);
   if (!id) {
@@ -702,11 +1338,11 @@ function loadVideoFromInput() {
 btnLoadUrl.addEventListener("click", loadVideoFromInput);
 urlInput.addEventListener("keydown", (ev) => { if (ev.key === "Enter") loadVideoFromInput(); });
 
-/* ---------------- annotate mode ---------------- */
+/* annotate mode */
 const KEYMAP = { a: "ADDRESS", s: "SHOT", b: "BREAK", t: "TURN", e: "EXT", g: "GAME" };
 document.addEventListener("keydown", (ev) => {
-  if (ev.target === urlInput) return;      // typing a URL, not annotating
-  if (!live.annotate || !ytReady) return;
+  if (ev.target === urlInput || ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT") return;
+  if (MODE.current !== "youtube" || !live.annotate || !ytReady) return;
   const k = ev.key.toLowerCase();
   if (k === "z") {
     const undone = live.draft.pop();
@@ -714,11 +1350,11 @@ document.addEventListener("keydown", (ev) => {
     return;
   }
   if (!KEYMAP[k]) return;
-  if (LIVE_TRACK.events.length) return;   // baked-in track takes precedence; don't mix
+  if (currentVideoId === LIVE_TRACK.videoId && LIVE_TRACK.events.length) return;
   const t = Math.round(ytPlayer.getCurrentTime() * 10) / 10;
   live.draft.push({ t, e: KEYMAP[k] });
   live.draft.sort((x, y) => x.t - y.t);
-  live.lastAnnounced = -1;                // let feed re-announce cleanly
+  live.lastAnnounced = -1;
   saveDraft();
   pushFeed("TABLE 1", true, "ANNOTATE — " + KEYMAP[k] + " @ " + fmtVideoT(t), "gold");
 });
@@ -741,11 +1377,11 @@ const tables = Array.from({ length: 5 }, (_, i) => new Table(i));
 const tablesEl = document.getElementById("tables");
 const CIRC = 2 * Math.PI * 53;
 
-function cardInner(idSuffix, tno, raceTo, isLive) {
+function cardInner(idSuffix, raceLabel, liveLabel) {
   return `
     <div class="tc-head">
-      <div class="tno">${isLive ? 'TABLE 1 <span class="live-tag">· LIVE FEED</span>' : "TABLE " + tno}</div>
-      <div class="race num">RACE TO ${raceTo}</div>
+      <div class="tno">${liveLabel ? 'TABLE 1 <span class="live-tag">· ' + liveLabel + "</span>" : "TABLE " + idSuffix}</div>
+      <div class="race num">${raceLabel}</div>
     </div>
     <div class="state-badge idle" id="badge-${idSuffix}">—</div>
     <div class="clock-zone">
@@ -767,12 +1403,14 @@ function cardInner(idSuffix, tno, raceTo, isLive) {
     </div>
     <div class="players" id="players-${idSuffix}"></div>`;
 }
-
 function buildSimCards() {
   tablesEl.innerHTML = tables.map(t =>
-    `<div class="table-card" id="card-${t.no}">${cardInner(t.no, t.no, t.raceTo, false)}</div>`).join("");
+    `<div class="table-card" id="card-${t.no}">${cardInner(t.no, "RACE TO " + t.raceTo, null)}</div>`).join("");
 }
-document.getElementById("live-card").innerHTML = cardInner("live", 1, LIVE_TRACK.raceTo, true);
+function buildLiveCard() {
+  const label = MODE.current === "camera" ? "LIVE CAMERA" : MODE.current === "file" ? "LIVE FILE" : "LIVE FEED";
+  document.getElementById("live-card").innerHTML = cardInner("live", MODE.current === "youtube" ? "RACE TO " + LIVE_TRACK.raceTo : "VISION MVP", label);
+}
 
 function paintCard(idSuffix, cardEl, view) {
   const badge = document.getElementById("badge-" + idSuffix);
@@ -802,7 +1440,7 @@ function viewFromState(phase, clock, limit, afterBreak, nextIsBreak, players, tu
     players, turn, lastEvent,
     showTurn: phase !== "MATCH_OVER",
     shotTypeLabel: (afterBreak && phase !== "ADDRESSING") || (phase === "ADDRESSING" && limit === RULES.afterBreak)
-      ? "60S — AFTER BREAK" : (nextIsBreak ? "BREAK SHOT" : "30S SHOT"),
+      ? "60S — AFTER BREAK" : (nextIsBreak ? "BREAK SHOT" : limit + "S SHOT"),
     shotTypeGold: limit === RULES.afterBreak && phase === "ADDRESSING",
     stateCls: "idle", stateTxt: extraIdle || "RACKING",
     ringColor: "rgba(126,184,204,0.35)", ringOffset: 0, secs: "–", cardCls: "",
@@ -833,51 +1471,78 @@ function renderSim(t) {
   paintCard(t.no, document.getElementById("card-" + t.no), v);
 }
 
-function renderLive() {
-  const t = live.videoT;
-  const s = replayLive(t);
+const visionPlayers = [{ name: "Player 1", score: 0, ext: true }, { name: "Player 2", score: 0, ext: true }];
+function renderLive(now) {
   let v;
-  if (live.feed === "LOST") {
-    v = viewFromState("AWAITING", 0, s.limit, false, false, s.players, s.turn, "FEED_LOST", "FEED LOST");
-    v.stateCls = "expired"; v.stateTxt = "FEED LOST";
-  } else if (!trackEvents().length) {
-    v = viewFromState("AWAITING", 0, s.limit, false, false, s.players, s.turn,
-      "AWAITING CV TRACK — annotate or run the pipeline", "AWAITING CV TRACK");
-  } else {
-    const phase = s.phase === "AWAITING" ? "RACKING" : s.phase;
-    v = viewFromState(phase, s.clock, s.limit, s.afterBreak, s.nextIsBreak, s.players, s.turn, s.lastEvent);
-    if (live.feed !== "PLAYING" && phase === "ADDRESSING") {
-      v.stateCls = "held"; v.stateTxt = "CLOCK HELD — FEED " + live.feed; v.cardCls = "";
+  if (MODE.current === "youtube") {
+    const t = live.videoT;
+    const s = replayLive(t);
+    if (live.feed === "LOST") {
+      v = viewFromState("AWAITING", 0, s.limit, false, false, s.players, s.turn, "FEED_LOST", "FEED LOST");
+      v.stateCls = "expired"; v.stateTxt = "FEED LOST";
+    } else if (!trackEvents().length) {
+      v = viewFromState("AWAITING", 0, s.limit, false, false, s.players, s.turn,
+        "AWAITING CV TRACK — annotate or run the pipeline", "AWAITING CV TRACK");
+    } else {
+      const phase = s.phase === "AWAITING" ? "RACKING" : s.phase;
+      v = viewFromState(phase, s.clock, s.limit, s.afterBreak, s.nextIsBreak, s.players, s.turn, s.lastEvent);
+      if (live.feed !== "PLAYING" && phase === "ADDRESSING") {
+        v.stateCls = "held"; v.stateTxt = "CLOCK HELD — FEED " + live.feed; v.cardCls = "";
+      }
     }
+    document.getElementById("video-time").textContent = ytReady ? "VIDEO " + fmtVideoT(t) : "--:--";
+  } else {
+    visionPlayers[0].ext = !vision.extUsed;
+    const clock = vision.clockRemaining(now);
+    const map = {
+      OFF:        ["AWAITING", "SOURCE OFF"],
+      SEARCHING:  ["AWAITING", "SEARCHING FOR TABLE"],
+      READY:      ["GRACE", null],
+      ADDRESSING: ["ADDRESSING", null],
+      ROLLING:    ["GRACE", null],
+      EXPIRED:    ["EXPIRED", null],
+    };
+    const [phase, idleTxt] = map[vision.state] || ["AWAITING", vision.state];
+    v = viewFromState(phase, clock, vision.clockLimit || cfg.clockSecs, false, false, visionPlayers, 0, vision.lastEvent, idleTxt);
+    if (vision.state === "ROLLING") { v.stateTxt = "BALLS ROLLING"; }
+    if (vision.state === "READY") { v.secs = cfg.clockSecs; }
+    const vd = els.cvVideo;
+    document.getElementById("video-time").textContent =
+      MODE.current === "file" && vd.duration ? "VIDEO " + fmtVideoT(vd.currentTime) :
+      MODE.current === "camera" && cameraStream ? "CAMERA LIVE" : "--:--";
   }
   paintCard("live", document.getElementById("live-card"), v);
-  document.getElementById("video-time").textContent = ytReady ? "VIDEO " + fmtVideoT(t) : "--:--";
 }
 
 function renderStats() {
-  const liveActive = live.feed !== "LOST" && live.feed !== "IDLE" ? 1 : 0;
-  const running = tables.filter(t => t.phase === "ADDRESSING").length
-    + (live.feed === "PLAYING" && replayLive(live.videoT).phase === "ADDRESSING" ? 1 : 0);
+  const liveActive = MODE.current === "youtube"
+    ? (live.feed !== "LOST" && live.feed !== "IDLE" ? 1 : 0)
+    : (vision.running && vision.table ? 1 : 0);
+  const liveRunning = MODE.current === "youtube"
+    ? (live.feed === "PLAYING" && replayLive(live.videoT).phase === "ADDRESSING" ? 1 : 0)
+    : (vision.state === "ADDRESSING" ? 1 : 0);
   document.getElementById("st-tables").textContent = tables.filter(t => t.phase !== "MATCH_OVER").length + liveActive;
-  document.getElementById("st-running").textContent = running;
+  document.getElementById("st-running").textContent = tables.filter(t => t.phase === "ADDRESSING").length + liveRunning;
   document.getElementById("st-fouls").textContent = fouls;
   document.getElementById("st-exts").textContent = extsUsed;
   const avg = shotTimes.length ? (shotTimes.reduce((a, b) => a + b, 0) / shotTimes.length) : null;
   document.getElementById("st-avg").innerHTML = (avg ? avg.toFixed(1) : "—") + "<small> S</small>";
 }
 
-/* ---------------- loops ---------------- */
+/* ---------------- main loop ---------------- */
 const sim = { speed: 1, paused: false };
-let last = performance.now();
+let last = performance.now(), lastLiveLabel = "";
 function loop(now) {
   const dt = Math.min(0.25, (now - last) / 1000) * sim.speed;
   last = now;
   if (!sim.paused) { tables.forEach(t => t.tick(dt)); tables.forEach(renderSim); }
-  if (ytReady && ytPlayer.getCurrentTime) {
+  if (MODE.current === "youtube" && ytReady && ytPlayer.getCurrentTime) {
     live.videoT = ytPlayer.getCurrentTime() || 0;
-    if (live.feed === "PLAYING") announceLive(live.videoT);
+    if (live.feed === "PLAYING") announceYt(live.videoT);
   }
-  renderLive();
+  if (MODE.current !== "youtube") vision.tick(now);
+  if (lastLiveLabel !== MODE.current) { buildLiveCard(); lastLiveLabel = MODE.current; }
+  renderLive(now);
   renderStats();
   requestAnimationFrame(loop);
 }
@@ -895,8 +1560,9 @@ document.getElementById("btn-pause").addEventListener("click", e => {
 });
 
 buildSimCards();
+buildLiveCard();
 saveDraft();
-setFeed("IDLE");
+setMode("camera");
 tables.forEach(t => t.emit("NEW_MATCH — " + t.players[0].name + " vs " + t.players[1].name));
 requestAnimationFrame(loop);
 </script>
