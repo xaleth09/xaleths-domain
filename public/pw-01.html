@@ -320,7 +320,7 @@
 
         <div class="video-frame">
           <div id="yt-player" hidden></div>
-          <video id="cv-video" playsinline muted></video>
+          <video id="cv-video" playsinline muted autoplay></video>
           <canvas id="cv-overlay"></canvas>
           <div class="video-fallback" id="video-fallback" hidden>
             <div class="t" id="fallback-title">NO SOURCE</div>
@@ -678,8 +678,14 @@ async function startCamera() {
       // some devices reject shaped constraints — fall back to any camera
       cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     }
+    els.cvVideo.controls = false;
     els.cvVideo.srcObject = cameraStream;
-    await els.cvVideo.play();
+    // Do NOT await play(): after the permission prompt the tap's user
+    // activation can be spent, and some mobile browsers then reject or
+    // hang the play() promise even though the stream is live. The video
+    // is muted+autoplay, so playback starts on its own; we also retry
+    // on loadedmetadata and on the next tap (listeners below).
+    els.cvVideo.play().catch(() => {});
     hideFallback();
     setFeed("LIVE");
     document.getElementById("btn-camera").textContent = "STOP CAMERA";
@@ -687,6 +693,7 @@ async function startCamera() {
     pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — camera live (" + cameraFacing + ")", "gold");
     vision.start();
   } catch (err) {
+    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
     setFeed("LOST");
     showFallback("CAMERA UNAVAILABLE", (err && err.name) === "NotAllowedError"
       ? "Camera permission was denied. Allow camera access for this site and try again."
@@ -694,6 +701,15 @@ async function startCamera() {
     pushFeed("TABLE 1", true, "FEED_LOST — camera unavailable", "foul");
   }
 }
+// resilience: kick playback whenever the stream is ready or the user taps
+els.cvVideo.addEventListener("loadedmetadata", () => {
+  if (MODE.current !== "youtube") els.cvVideo.play().catch(() => {});
+});
+document.addEventListener("pointerdown", () => {
+  if (MODE.current !== "youtube" && els.cvVideo.paused && (els.cvVideo.srcObject || els.cvVideo.src)) {
+    els.cvVideo.play().catch(() => {});
+  }
+});
 function stopCamera() {
   if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
   if (els.cvVideo.srcObject) els.cvVideo.srcObject = null;
