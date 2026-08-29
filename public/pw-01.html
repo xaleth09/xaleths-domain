@@ -362,7 +362,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 22 · ENGINE:pool-watcher+ml</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 23 · ENGINE:pool-watcher+ml</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -428,6 +428,10 @@
         <div class="src-row" id="camera-controls">
           <button class="btn" id="btn-camera">START CAMERA</button>
           <button class="btn" id="btn-flip" disabled>FLIP</button>
+        </div>
+        <div class="src-row" id="camera-select-row" hidden>
+          <span style="font-size:9px;font-weight:800;letter-spacing:0.12em;color:var(--ink-2);">LENS</span>
+          <select class="sel-input" id="cfg-camera" style="flex:1;"></select>
         </div>
         <div class="src-row" id="zoom-row" hidden>
           <span style="font-size:9px;font-weight:800;letter-spacing:0.12em;color:var(--ink-2);">ZOOM</span>
@@ -581,7 +585,7 @@
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-  // packages/core/src/watcher.ts
+  // ../../packages/core/src/watcher.ts
   var WNT_9BALL = {
     name: "wnt-9ball",
     shotSeconds: 30,
@@ -708,14 +712,12 @@
         this.emit("FEED_STABLE", "watcher", void 0, "FEED_STABLE — camera settled, resuming");
       }
       this.unstable = false;
-      const ballRaw = obs.balls.some((b) => b.rawMoving);
       const ballPersist = obs.balls.some((b) => b.moving);
       const intrusion = obs.intrusions.length > 0;
-      const concrete = ballRaw || intrusion;
       const e = obs.motionEnergy;
-      const moving = e > T.movingThreshold * 2.5 || e > T.movingThreshold && concrete;
+      const moving = e > T.movingThreshold * 2.5 || e > T.movingThreshold && ballPersist;
       const still = e < T.restThreshold;
-      const quiet = still || !ballPersist && e < T.movingThreshold * 1.5;
+      const quiet = still || !ballPersist && e < T.movingThreshold * 2;
       if (quiet) {
         if (!this.restSince) this.restSince = nowMs;
       } else this.restSince = 0;
@@ -857,7 +859,7 @@
     }
   };
 
-  // packages/engine-classical/src/index.ts
+  // ../../packages/engine-classical/src/index.ts
   var DEFAULT_CONFIG = {
     res: 240,
     diffThreshold: 24,
@@ -1183,7 +1185,13 @@
           b.cya = (b.mny + b.mxy) / 2;
           const reach = Math.max(b.mxx - b.mnx, b.mxy - b.mny) + 4;
           const m = this.prevBalls.find((p) => Math.abs(p.cxa - b.cxa) < reach && Math.abs(p.cya - b.cya) < reach);
-          b.moving = !!b.rawMoving && !!(m && m.rawMoving);
+          let dispMoving = false;
+          if (m) {
+            const disp = Math.hypot(b.cxa - (m.cxa - camShift.dx), b.cya - (m.cya - camShift.dy));
+            const radius = Math.max(2, (b.mxx - b.mnx + b.mxy - b.mny) / 4);
+            dispMoving = disp > Math.max(1.2, radius * 0.3);
+          }
+          b.moving = !!b.rawMoving && !!(m && m.rawMoving) && dispMoving;
         }
         this.prevBalls = balls;
       }
@@ -1208,7 +1216,7 @@
     }
   };
 
-  // packages/engine-ml/src/index.ts
+  // ../../packages/engine-ml/src/index.ts
   var COCO_CLASS_ROLES = {
     0: { role: "person" },
     32: { role: "ball" }
@@ -1535,7 +1543,7 @@
     }
   };
 
-  // apps/admin-dashboard/src/main.js
+  // src/main.js
   var RULES_PROFILE = WNT_9BALL;
   var RULES = {
     standardShot: RULES_PROFILE.shotSeconds,
@@ -1759,6 +1767,7 @@
         }
       }
     }
+    syncOverlayInteractivity();
     pushFeed("TABLE 1", true, "SOURCE_MODE — " + mode.toUpperCase(), "gold");
   }
   document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
@@ -1778,15 +1787,15 @@
   }
   var cameraStream = null;
   var cameraFacing = "environment";
+  var cameraDeviceId = null;
   async function startCamera() {
     try {
       stopCamera();
+      const shaped = cameraDeviceId ? { deviceId: { exact: cameraDeviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } } : { facingMode: cameraFacing, width: { ideal: 1920 }, height: { ideal: 1080 } };
       try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: cameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false
-        });
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: shaped, audio: false });
       } catch (e1) {
+        cameraDeviceId = null;
         cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       }
       els.cvVideo.controls = false;
@@ -1797,8 +1806,9 @@
       setFeed("LIVE");
       document.getElementById("btn-camera").textContent = "STOP CAMERA";
       document.getElementById("btn-flip").disabled = false;
-      pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — camera live (" + cameraFacing + ")", "gold");
+      pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — camera live (" + (cameraDeviceId ? "selected lens" : cameraFacing) + ")", "gold");
       setupCameraControls();
+      populateCameraPicker();
       vision.start();
     } catch (err) {
       if (cameraStream) {
@@ -1847,6 +1857,28 @@
   });
   document.getElementById("btn-flip").addEventListener("click", () => {
     cameraFacing = cameraFacing === "environment" ? "user" : "environment";
+    cameraDeviceId = null;
+    startCamera();
+  });
+  async function populateCameraPicker() {
+    const sel = document.getElementById("cfg-camera");
+    const row = document.getElementById("camera-select-row");
+    try {
+      const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+      if (devices.length < 2) {
+        row.hidden = true;
+        return;
+      }
+      const current = cameraStream && cameraStream.getVideoTracks()[0].getSettings().deviceId;
+      sel.innerHTML = devices.map((d, i) => `<option value="${d.deviceId}"${d.deviceId === current ? " selected" : ""}>${(d.label || "CAMERA " + (i + 1)).toUpperCase()}</option>`).join("");
+      row.hidden = false;
+    } catch (e) {
+      row.hidden = true;
+    }
+  }
+  document.getElementById("cfg-camera").addEventListener("change", (e) => {
+    cameraDeviceId = e.target.value;
+    pushFeed("TABLE 1", true, "CAMERA_LENS — switching", "gold");
     startCamera();
   });
   document.getElementById("btn-file").addEventListener("click", () => document.getElementById("file-input").click());
@@ -1951,6 +1983,7 @@
       this.roi = roi;
       engine.setRoi(roi);
       if (this.running) this.state = "SEARCHING";
+      syncOverlayInteractivity();
       pushFeed("TABLE 1", true, roi ? "TABLE_AREA_SET — analysis restricted to selection" : "TABLE_AREA_CLEARED — analyzing full frame", "gold");
     },
     setStateLabel() {
@@ -2128,6 +2161,10 @@
       ctx.setLineDash([8, 5]);
       ctx.strokeRect(r.x, r.y, r.w, r.h);
       ctx.setLineDash([]);
+      ctx.fillStyle = "#f5a623";
+      for (const [hx, hy] of [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]]) {
+        ctx.fillRect(hx - 5, hy - 5, 10, 10);
+      }
     }
     if (roiSelect.cur) {
       const r = roiSelect.cur;
@@ -2275,6 +2312,85 @@
     });
     roiBtn.textContent = "CLEAR AREA";
   });
+  var roiAdjust = { mode: null, corner: null, start: null, rect: null, id: -1, engaged: false };
+  function roiCanvasRect() {
+    const v = els.cvVideo, c = els.cvOverlay;
+    if (!vision.roi || !v.videoWidth) return null;
+    const fit = containFit(v, c.clientWidth, c.clientHeight);
+    return {
+      x: fit.ox + vision.roi.x * fit.sw,
+      y: fit.oy + vision.roi.y * fit.sh,
+      w: vision.roi.w * fit.sw,
+      h: vision.roi.h * fit.sh
+    };
+  }
+  function syncOverlayInteractivity() {
+    els.cvOverlay.style.pointerEvents = vision.roi && MODE.current !== "youtube" ? "auto" : "";
+  }
+  els.cvOverlay.addEventListener("pointerdown", (ev) => {
+    if (roiSelect.picking || !vision.roi) return;
+    if (roiAdjust.mode) {
+      roiAdjust.mode = null;
+      roiAdjust.engaged = false;
+      return;
+    }
+    const r = roiCanvasRect();
+    if (!r) return;
+    const p = canvasPos(ev);
+    const near = (cx, cy) => Math.hypot(p.x - cx, p.y - cy) < 18;
+    let corner = null;
+    if (near(r.x, r.y)) corner = "nw";
+    else if (near(r.x + r.w, r.y)) corner = "ne";
+    else if (near(r.x, r.y + r.h)) corner = "sw";
+    else if (near(r.x + r.w, r.y + r.h)) corner = "se";
+    const inside = p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h;
+    if (!corner && !inside) return;
+    Object.assign(roiAdjust, { mode: corner ? "resize" : "move", corner, start: p, rect: r, id: ev.pointerId, engaged: false });
+  });
+  els.cvOverlay.addEventListener("pointermove", (ev) => {
+    if (!roiAdjust.mode || ev.pointerId !== roiAdjust.id) return;
+    const p = canvasPos(ev);
+    if (!roiAdjust.engaged) {
+      if (Math.hypot(p.x - roiAdjust.start.x, p.y - roiAdjust.start.y) < 8) return;
+      roiAdjust.engaged = true;
+      try {
+        els.cvOverlay.setPointerCapture(ev.pointerId);
+      } catch (e) {
+      }
+    }
+    const r = roiAdjust.rect;
+    let n;
+    if (roiAdjust.mode === "move") {
+      n = { x: r.x + (p.x - roiAdjust.start.x), y: r.y + (p.y - roiAdjust.start.y), w: r.w, h: r.h };
+    } else {
+      const ax = roiAdjust.corner.includes("w") ? r.x + r.w : r.x;
+      const ay = roiAdjust.corner.includes("n") ? r.y + r.h : r.y;
+      n = { x: Math.min(ax, p.x), y: Math.min(ay, p.y), w: Math.abs(p.x - ax), h: Math.abs(p.y - ay) };
+    }
+    roiSelect.cur = n;
+  });
+  els.cvOverlay.addEventListener("pointerup", (ev) => {
+    if (!roiAdjust.mode || ev.pointerId !== roiAdjust.id) return;
+    const wasEngaged = roiAdjust.engaged, n = roiSelect.cur;
+    roiAdjust.mode = null;
+    roiAdjust.engaged = false;
+    if (!wasEngaged || !n) {
+      roiSelect.cur = null;
+      return;
+    }
+    roiSelect.cur = null;
+    const v = els.cvVideo, c = els.cvOverlay;
+    const fit = containFit(v, c.clientWidth, c.clientHeight);
+    const nx = (n.x - fit.ox) / fit.sw, ny = (n.y - fit.oy) / fit.sh;
+    const nw = n.w / fit.sw, nh = n.h / fit.sh;
+    if (nw < 0.05 || nh < 0.05) return;
+    vision.setRoi({
+      x: Math.max(0, Math.min(1, nx)),
+      y: Math.max(0, Math.min(1, ny)),
+      w: Math.min(1 - Math.max(0, Math.min(1, nx)), nw),
+      h: Math.min(1 - Math.max(0, Math.min(1, ny)), nh)
+    });
+  });
   var cam = { track: null, caps: {} };
   function setupCameraControls() {
     cam.track = cameraStream && cameraStream.getVideoTracks()[0];
@@ -2400,7 +2516,7 @@
       const fit = containFit(v, r.width, r.height);
       const nx = (e.clientX - r.left - fit.ox) / fit.sw, ny = (e.clientY - r.top - fit.oy) / fit.sh;
       if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) {
-        cam.track.applyConstraints({ advanced: [{ exposureMode: "continuous", pointsOfInterest: [{ x: nx, y: ny }] }] }).then(() => pushFeed("TABLE 1", true, "METER_POINT — exposure/focus target set (" + Math.round(nx * 100) + "%, " + Math.round(ny * 100) + "%)")).catch(() => {
+        cam.track.applyConstraints({ advanced: [{ exposureMode: "continuous", focusMode: "continuous", pointsOfInterest: [{ x: nx, y: ny }] }] }).then(() => pushFeed("TABLE 1", true, "METER_POINT — exposure/focus target set (" + Math.round(nx * 100) + "%, " + Math.round(ny * 100) + "%)")).catch(() => {
         }).finally(() => setTimeout(syncDialsFromTrack, 300));
       }
     }
