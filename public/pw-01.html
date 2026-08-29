@@ -300,7 +300,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 11</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 12</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -413,6 +413,7 @@
           <div class="meter"><div class="k">MEASURED FPS</div><div class="v num" id="m-fps">0</div></div>
           <div class="meter"><div class="k">FRAME COST</div><div class="v num" id="m-cost">— ms</div></div>
           <div class="meter"><div class="k">ADAPTIVE</div><div class="v num" id="m-adapt">FULL</div></div>
+          <div class="meter"><div class="k">CAM SHIFT</div><div class="v num" id="m-shift">0,0</div></div>
           <div class="meter"><div class="k">MOTION ENERGY</div><div class="v num" id="m-motion">0</div><div class="bar"><i id="m-motion-bar"></i></div></div>
           <div class="meter"><div class="k">TABLE LOCK</div><div class="v num" id="m-table">—</div></div>
           <div class="meter"><div class="k">BALLS / PERSONS</div><div class="v num" id="m-objs">0 / —</div></div>
@@ -790,6 +791,7 @@ const vision = {
   table: null,           // {x,y,w,h} in analysis px
   balls: [], intrusion: false, intrusions: [],
   motionEma: 0, restSince: 0, addressSince: 0, idleSince: 0,
+  camShift: { dx: 0, dy: 0, unstable: false }, alignOff: 0, lastUnstableAt: 0, unstableAnnounced: false, camMotionEma: 0,
   state: "OFF",          // OFF|SEARCHING|READY|ADDRESSING|ROLLING|EXPIRED
   clockStart: 0, clockLimit: 30, extUsed: false,
   lastEvent: "—", measuredFps: 0, frameCost: 0, fpsWindow: [],
@@ -943,21 +945,56 @@ const vision = {
     if (!hadTable && this.table) pushFeed("TABLE 1", true, "TABLE_ACQUIRED — cloth lock " + Math.round(this.table.frac * 100) + "% of frame", "gold");
     if (hadTable && !this.table) pushFeed("TABLE 1", true, "FEED_LOST — table lost from view", "foul");
 
-    // --- pass 3: motion energy inside table bbox ---
+    // --- pass 3: camera-shake compensation + aligned motion energy ---
+    // Handheld cameras shift the WHOLE frame between ticks; naive frame
+    // differencing reads that as everything moving. Estimate the global
+    // (dx,dy) shift by minimizing summed absolute difference over the
+    // table region, then difference frames AFTER aligning by that shift:
+    // only motion beyond camera movement counts.
     const prevG = (this.prevW === aw) ? this.prevGray : null;
     let energy = 0;
+    this.camShift = { dx: 0, dy: 0, unstable: false };
     if (this.table && prevG) {
       const { x, y, w, h } = this.table;
+      const x0 = Math.max(4, x | 0), y0 = Math.max(4, y | 0);
+      const x1 = Math.min(aw - 4, (x + w) | 0), y1 = Math.min(ah - 4, (y + h) | 0);
+      const R = 3;                       // search ±3 analysis px
+      let bestDx = 0, bestDy = 0, bestSad = Infinity, zeroSad = 0;
+      for (let dy = -R; dy <= R; dy++) {
+        for (let dx = -R; dx <= R; dx++) {
+          let sad = 0;
+          for (let yy = y0; yy < y1; yy += 4) {
+            const row = yy * aw, prow = (yy + dy) * aw + dx;
+            for (let xx = x0; xx < x1; xx += 4) sad += Math.abs(gray[row + xx] - prevG[prow + xx]);
+          }
+          if (dx === 0 && dy === 0) zeroSad = sad;
+          if (sad < bestSad) { bestSad = sad; bestDx = dx; bestDy = dy; }
+        }
+      }
+      const atEdge = Math.abs(bestDx) === R || Math.abs(bestDy) === R;
+      const off = bestDy * aw + bestDx;
       let changed = 0, total = 0;
-      const x0 = x | 0, y0 = y | 0, x1 = (x + w) | 0, y1 = (y + h) | 0;
       for (let yy = y0; yy < y1; yy++) {
+        const row = yy * aw;
         for (let xx = x0; xx < x1; xx++) {
-          const i = yy * aw + xx;
+          const i = row + xx;
           total++;
-          if (Math.abs(gray[i] - prevG[i]) > 24) changed++;
+          if (Math.abs(gray[i] - prevG[i + off]) > 24) changed++;
         }
       }
       energy = total ? changed / total : 0;
+      // Unstable = the camera itself is moving hard. A single tick can look
+      // calm mid-shake (random jitter sometimes lands inside the search
+      // window), so smooth per-tick evidence — big shifts or a saturated
+      // search with heavy residual — into a sticky score. Real ball motion
+      // never saturates the search: the static table dominates the SAD.
+      const rawUnstable = atEdge && energy > 0.03;
+      const shiftMag = Math.max(Math.abs(bestDx), Math.abs(bestDy));
+      this.camMotionEma = this.camMotionEma * 0.7 + ((shiftMag >= 2 || rawUnstable) ? 0.3 : shiftMag >= 1 ? 0.12 : 0);
+      this.camShift = { dx: bestDx, dy: bestDy, unstable: rawUnstable || this.camMotionEma > 0.45 };
+      this.alignOff = off;
+    } else {
+      this.alignOff = 0;
     }
     this.motionEma = this.motionEma * 0.6 + energy * 0.4;
 
@@ -1015,29 +1052,67 @@ const vision = {
         }
         if (bl.area >= minBall && bl.area <= maxBall && bw / bh < 2.6 && bh / bw < 2.6) {
           // per-object motion: fraction of this blob's bbox that changed since last frame
-          bl.moving = false;
-          if (prevG) {
+          bl.rawMoving = false;
+          if (prevG && !this.camShift.unstable) {
+            const off = this.alignOff || 0;
             let ch = 0, tot = 0;
-            for (let yy = bl.mny; yy <= bl.mxy; yy++) {
-              for (let xx = bl.mnx; xx <= bl.mxx; xx++) {
+            for (let yy = Math.max(4, bl.mny); yy <= Math.min(ah - 5, bl.mxy); yy++) {
+              for (let xx = Math.max(4, bl.mnx); xx <= Math.min(aw - 5, bl.mxx); xx++) {
                 const q = yy * aw + xx; tot++;
-                if (Math.abs(gray[q] - prevG[q]) > 24) ch++;
+                if (Math.abs(gray[q] - prevG[q + off]) > 24) ch++;
               }
             }
-            bl.moving = tot > 0 && ch / tot > 0.18;
+            bl.rawMoving = tot > 0 && ch / tot > 0.18;
           }
           this.balls.push(bl);
         }
       }
       if (this.balls.length > 20) this.balls.length = 20;
+      // MOVING needs 2 consecutive ticks (matched by position): real rolls
+      // persist, sub-pixel shake residue flickers for a single tick
+      const prevBalls = this.prevBalls || [];
+      for (const b of this.balls) {
+        b.cxa = (b.mnx + b.mxx) / 2; b.cya = (b.mny + b.mxy) / 2;
+        const reach = Math.max(b.mxx - b.mnx, b.mxy - b.mny) + 4;
+        const m = prevBalls.find(p => Math.abs(p.cxa - b.cxa) < reach && Math.abs(p.cya - b.cya) < reach);
+        b.moving = b.rawMoving && !!(m && m.rawMoving);
+      }
+      this.prevBalls = this.balls;
     }
     this.prevGray = gray; this.prevW = aw;
   },
 
   machine(now) {
-    const moving = this.motionEma > movingThresh();
+    // camera too unstable to trust → freeze all decisions; if the clock is
+    // running, pause it (ambiguity resolves in the shooter's favor)
+    if (this.camShift && this.camShift.unstable) {
+      if (this.state === "ADDRESSING" && this.lastUnstableAt) {
+        this.clockStart += now - this.lastUnstableAt;
+      }
+      this.lastUnstableAt = now;
+      this.restSince = 0;
+      if (!this.unstableAnnounced) {
+        this.unstableAnnounced = true;
+        pushFeed("TABLE 1", true, "FEED_UNSTABLE — camera moving, clock held", "foul");
+      }
+      return;
+    }
+    if (this.unstableAnnounced) {
+      this.unstableAnnounced = false;
+      this.lastUnstableAt = 0;
+      pushFeed("TABLE 1", true, "FEED_STABLE — camera settled, resuming");
+    }
+    // global energy alone can be distributed shake residue — require a
+    // concrete mover (a ball or the arm/cue) unless energy is overwhelming
+    const ballMoving = this.balls.some(b => b.rawMoving);
+    const concrete = ballMoving || this.intrusion;
+    const moving = this.motionEma > movingThresh() * 2.5 || (this.motionEma > movingThresh() && concrete);
     const still = this.motionEma < restThresh();
-    if (still) { if (!this.restSince) this.restSince = now; } else this.restSince = 0;
+    // "quiet" tolerates lingering shake residue as long as no ball is
+    // actually moving — otherwise moderate handheld shake pins the state
+    // in ROLLING and the clock can never arm
+    const quiet = still || (!this.balls.some(b => b.moving) && this.motionEma < movingThresh() * 1.5);
+    if (quiet) { if (!this.restSince) this.restSince = now; } else this.restSince = 0;
     const atRest = this.restSince && (now - this.restSince > cfg.restHoldMs);
     if (moving || this.intrusion) this.idleSince = now;
 
@@ -1147,6 +1222,10 @@ const vision = {
     document.getElementById("m-motion").textContent = (this.motionEma * 1000).toFixed(2);
     document.getElementById("m-motion-bar").style.width = Math.min(100, this.motionEma / (movingThresh() * 2) * 100) + "%";
     document.getElementById("m-table").textContent = this.table ? Math.round(this.table.frac * 100) + "%" : "—";
+    const cs = this.camShift || { dx: 0, dy: 0, unstable: false };
+    const shiftEl = document.getElementById("m-shift");
+    shiftEl.textContent = cs.unstable ? "UNSTABLE" : cs.dx + "," + cs.dy;
+    shiftEl.style.color = cs.unstable ? "#ff4444" : "";
     document.getElementById("m-objs").textContent = this.balls.length + " / " + (cfg.personFps ? this.persons.length : "—");
   },
 };
@@ -1232,10 +1311,11 @@ function drawOverlay(vs) {
   if (L.state) {
     ctx.fillStyle = "rgba(8,13,26,0.75)";
     ctx.fillRect(6, 6, 190, 22);
-    ctx.fillStyle = vs.state === "ADDRESSING" ? "#00d4ff" : vs.state === "EXPIRED" ? "#ff4444" : "#7eb8cc";
+    const unstable = vs.camShift && vs.camShift.unstable;
+    ctx.fillStyle = unstable ? "#ff4444" : vs.state === "ADDRESSING" ? "#00d4ff" : vs.state === "EXPIRED" ? "#ff4444" : "#7eb8cc";
     ctx.font = "800 11px " + getComputedStyle(document.body).getPropertyValue("--font-ui");
     const clock = vs.state === "ADDRESSING" ? " · " + Math.ceil(vs.clockRemaining(performance.now())) + "s" : "";
-    ctx.fillText(vs.state + clock, 14, 21);
+    ctx.fillText(unstable ? "CAMERA MOVING — HOLD" : vs.state + clock, 14, 21);
   }
 }
 
