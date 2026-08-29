@@ -33,6 +33,13 @@ const ARTIFACTS: Artifact[] = [
     requiresAuth: true,
   },
   {
+    id: 'pool-watcher',
+    title: 'Pool Watcher — Shot Clock Ops',
+    description: 'Concept dashboard for the Pool Watcher project: a computer-vision shot clock for pro pool (WNT-style rules). Every table\'s clock at a glance — running/held/critical states, 30s shots and 60s after the break, one extension per player per rack, race scores — driven by a simulated CV event feed (PLAYER_ADDRESSING, SHOT_TAKEN, BREAK_DETECTED) standing in for the real per-table vision system.',
+    url: '/pool-watcher.html',
+    tag: 'CONCEPT',
+  },
+  {
     id: 'team-splitter',
     title: 'Team Splitter',
     description: 'Every valid way to split the player pool into two 3-person core teams for 9-ball league play — both teams kept in Gold or Silver (never Platinum), leftovers as rating-free subs. Enforces Robbi & Aaron on opposite teams and the higher-rated-only sub rule, with a balance thermometer, division-matchup views, and a "same team" player filter.',
