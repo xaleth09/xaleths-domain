@@ -108,6 +108,22 @@
   .video-frame iframe, .video-frame #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   #cv-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
   #cv-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .video-hud {
+    position: absolute; top: 10px; left: 10px; z-index: 4;
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(8, 13, 26, 0.82);
+    border: 1px solid var(--cyan);
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+    padding: 8px 14px;
+  }
+  .video-hud .vh-secs { font-size: 40px; font-weight: 800; line-height: 1; min-width: 58px; text-align: center; }
+  .video-hud .vh-right { display: flex; flex-direction: column; gap: 2px; }
+  .video-hud .vh-player {
+    font-size: 12px; font-weight: 800; letter-spacing: 0.14em; color: var(--gold);
+    cursor: pointer; user-select: none;
+  }
+  .video-hud .vh-player::after { content: " ⇄"; opacity: 0.5; font-size: 10px; }
+  .video-hud .vh-state { font-size: 9px; font-weight: 800; letter-spacing: 0.14em; color: var(--ink-2); }
   .fs-btn {
     position: absolute; top: 8px; right: 8px; z-index: 4;
     padding: 10px 16px; font-size: 20px; line-height: 1.1;
@@ -311,7 +327,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 14</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 15</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -338,6 +354,13 @@
         <div class="video-frame">
           <div id="yt-player" hidden></div>
           <button class="btn fs-btn" id="btn-fullscreen" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
+          <div class="video-hud" id="video-hud" hidden>
+            <div class="vh-secs num" id="vh-secs">–</div>
+            <div class="vh-right">
+              <div class="vh-player" id="vh-player" title="Tap to switch whose shot it is">PLAYER 1</div>
+              <div class="vh-state" id="vh-state">—</div>
+            </div>
+          </div>
           <video id="cv-video" playsinline muted autoplay></video>
           <canvas id="cv-overlay"></canvas>
           <div class="video-fallback" id="video-fallback" hidden>
@@ -1320,7 +1343,7 @@ function drawOverlay(vs) {
       label(px, py - 3, "PLAYER " + p.id + st, "#f5a623");
     }
   }
-  if (L.state) {
+  if (L.state && !isFrameFullscreen()) {
     ctx.fillStyle = "rgba(8,13,26,0.75)";
     ctx.fillRect(6, 6, 190, 22);
     const unstable = vs.camShift && vs.camShift.unstable;
@@ -1702,6 +1725,27 @@ function renderSim(t) {
 }
 
 const visionPlayers = [{ name: "Player 1", score: 0, ext: true }, { name: "Player 2", score: 0, ext: true }];
+vision.turn = 0;
+document.getElementById("vh-player").addEventListener("click", () => {
+  vision.turn = 1 - vision.turn;
+  pushFeed("TABLE 1", true, "TURN_CHANGE — " + visionPlayers[vision.turn].name + " at table (manual)");
+});
+function isFrameFullscreen() {
+  return document.fullscreenElement === frameEl || frameEl.classList.contains("fake-full");
+}
+function updateHud(view, clockSecs) {
+  const hud = document.getElementById("video-hud");
+  const show = isFrameFullscreen();
+  hud.hidden = !show;
+  if (!show) return;
+  const secsEl = document.getElementById("vh-secs");
+  secsEl.textContent = clockSecs;
+  secsEl.style.color = view.stateCls === "critical" || view.stateCls === "expired" ? "#ff4444"
+    : view.stateCls === "warning" ? "#f5a623"
+    : view.stateCls === "running" ? "#00d4ff" : "#7eb8cc";
+  document.getElementById("vh-player").textContent = view.players[view.turn] ? view.players[view.turn].name.toUpperCase() : "—";
+  document.getElementById("vh-state").textContent = view.stateTxt;
+}
 function renderLive(now) {
   let v;
   if (MODE.current === "youtube") {
@@ -1733,7 +1777,7 @@ function renderLive(now) {
       EXPIRED:    ["EXPIRED", null],
     };
     const [phase, idleTxt] = map[vision.state] || ["AWAITING", vision.state];
-    v = viewFromState(phase, clock, vision.clockLimit || cfg.clockSecs, false, false, visionPlayers, 0, vision.lastEvent, idleTxt);
+    v = viewFromState(phase, clock, vision.clockLimit || cfg.clockSecs, false, false, visionPlayers, vision.turn, vision.lastEvent, idleTxt);
     if (vision.state === "ROLLING") { v.stateTxt = "BALLS ROLLING"; }
     if (vision.state === "READY") { v.secs = cfg.clockSecs; }
     const vd = els.cvVideo;
@@ -1742,6 +1786,7 @@ function renderLive(now) {
       MODE.current === "camera" && cameraStream ? "CAMERA LIVE" : "--:--";
   }
   paintCard("live", document.getElementById("live-card"), v);
+  updateHud(v, v.secs);
 }
 
 function renderStats() {
