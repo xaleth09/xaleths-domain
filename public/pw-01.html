@@ -362,7 +362,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 21 · ENGINE:pool-watcher+ml</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 22 · ENGINE:pool-watcher+ml</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -1032,7 +1032,11 @@
         }
         if (!bestRegion || count > bestRegion.count) bestRegion = { count, minX, maxX, minY, maxY };
       }
-      if (bestRegion && bestRegion.count >= 18) {
+      if (this.roi) {
+        const inset = Math.max(1, Math.min(aw, ah) * 0.02);
+        this.tablePx = { x: inset, y: inset, w: aw - inset * 2, h: ah - inset * 2, frac: 1 };
+        this.clothLockFrames++;
+      } else if (bestRegion && bestRegion.count >= 18) {
         const cw = aw / GW, ch = ah / GH;
         this.tablePx = {
           x: bestRegion.minX * cw + cw / 2,
@@ -2144,7 +2148,7 @@
       ctx.shadowBlur = 8;
       ctx.strokeRect(t.x, t.y, t.w, t.h);
       ctx.shadowBlur = 0;
-      label(t.x + 2, t.y + 13, "TABLE · LOCKED", "#00d4ff");
+      label(t.x + 2, t.y + 13, vs.roi ? "TABLE · OPERATOR LOCK" : "TABLE · LOCKED", "#00d4ff");
     }
     if (L.balls) {
       for (const b of vs.balls) {
@@ -2342,6 +2346,19 @@
     for (const id of ["cfg-zoom", "cfg-zoom-fs"]) document.getElementById(id).value = z;
     for (const id of ["zoom-val", "zoom-val-fs"]) document.getElementById(id).textContent = z.toFixed(1) + "×";
   }
+  function syncDialsFromTrack() {
+    if (!cam.track || !cam.track.getSettings) return;
+    const s = cam.track.getSettings();
+    if (cam.caps.zoom && s.zoom !== void 0) {
+      for (const id of ["cfg-zoom", "cfg-zoom-fs"]) document.getElementById(id).value = s.zoom;
+      for (const id of ["zoom-val", "zoom-val-fs"]) document.getElementById(id).textContent = Number(s.zoom).toFixed(1) + "×";
+    }
+    if (cam.caps.exposureCompensation && s.exposureCompensation !== void 0) {
+      const v = Number(s.exposureCompensation);
+      for (const id of ["cfg-ev", "cfg-ev-fs"]) document.getElementById(id).value = v;
+      for (const id of ["ev-val", "ev-val-fs"]) document.getElementById(id).textContent = (v > 0 ? "+" : "") + v.toFixed(1);
+    }
+  }
   var pinch = { pts: /* @__PURE__ */ new Map(), startDist: 0, startZoom: 0 };
   var frameForGestures = document.querySelector(".video-frame");
   function gestureTargetOk(e) {
@@ -2383,8 +2400,8 @@
       const fit = containFit(v, r.width, r.height);
       const nx = (e.clientX - r.left - fit.ox) / fit.sw, ny = (e.clientY - r.top - fit.oy) / fit.sh;
       if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) {
-        cam.track.applyConstraints({ advanced: [{ exposureMode: "continuous", pointsOfInterest: [{ x: nx, y: ny }] }] }).catch(() => {
-        });
+        cam.track.applyConstraints({ advanced: [{ exposureMode: "continuous", pointsOfInterest: [{ x: nx, y: ny }] }] }).then(() => pushFeed("TABLE 1", true, "METER_POINT — exposure/focus target set (" + Math.round(nx * 100) + "%, " + Math.round(ny * 100) + "%)")).catch(() => {
+        }).finally(() => setTimeout(syncDialsFromTrack, 300));
       }
     }
   }
