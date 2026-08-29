@@ -226,6 +226,18 @@ export default {
     }
 
     // Everything else: serve the static asset.
-    return env.ASSETS.fetch(request);
+    // HTML always revalidates: with no explicit Cache-Control, mobile
+    // browsers cache pages heuristically and keep serving old builds
+    // after deploys (bit us repeatedly on pw-01). no-cache still allows
+    // storing — the browser just must check freshness (cheap 304 via
+    // the asset ETag) before using it.
+    const res = await env.ASSETS.fetch(request);
+    const ct = res.headers.get('Content-Type') || '';
+    if (ct.includes('text/html')) {
+      const fresh = new Response(res.body, res);
+      fresh.headers.set('Cache-Control', 'no-cache');
+      return fresh;
+    }
+    return res;
   },
 };
