@@ -23,6 +23,7 @@
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; background: var(--bg); }
   body {
     color: var(--ink);
@@ -640,11 +641,14 @@ function setMode(mode) {
     setFeed(ytReady ? "PAUSED" : "IDLE");
   } else {
     if (ytReady && ytPlayer.pauseVideo) try { ytPlayer.pauseVideo(); } catch (e) {}
-    if (mode === "file" && els.cvVideo.src) { vision.start(); }
-    else if (mode === "camera" && cameraStream) { vision.start(); }
-    else {
-      setFeed("IDLE");
-      showFallback("NO SOURCE", mode === "camera" ? "Press START CAMERA and point it at a pool table." : "Choose a video file — a clip you recorded works great.");
+    if (mode === "file") {
+      stopCamera();                       // srcObject would override a file src
+      if (els.cvVideo.src) { els.cvVideo.controls = true; els.cvVideo.play().catch(() => {}); vision.start(); }
+      else { vision.stop(); setFeed("IDLE"); showFallback("NO SOURCE", "Choose a video file — a clip you recorded works great."); }
+    } else if (mode === "camera") {
+      els.cvVideo.controls = false;
+      if (cameraStream) { vision.start(); }
+      else { vision.stop(); els.cvVideo.pause(); setFeed("IDLE"); showFallback("NO SOURCE", "Press START CAMERA and point it at a pool table."); }
     }
   }
   pushFeed("TABLE 1", true, "SOURCE_MODE — " + mode.toUpperCase(), "gold");
