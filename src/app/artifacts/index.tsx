@@ -33,11 +33,11 @@ const ARTIFACTS: Artifact[] = [
     requiresAuth: true,
   },
   {
-    id: 'pool-watcher',
-    title: 'Pool Watcher — Shot Clock Ops',
-    description: 'Concept dashboard for the Pool Watcher project: a computer-vision shot clock for pro pool (WNT-style rules). Every table\'s clock at a glance — running/held/critical states, 30s shots and 60s after the break, one extension per player per rack, race scores — driven by a simulated CV event feed (PLAYER_ADDRESSING, SHOT_TAKEN, BREAK_DETECTED) standing in for the real per-table vision system.',
-    url: '/pool-watcher.html',
-    tag: 'CONCEPT',
+    id: 'pw-01',
+    title: 'PW-01',
+    description: 'Sealed concept build. No description — what it is stays inside. Open it to find out.',
+    url: '/pw-01.html',
+    tag: 'SEALED',
   },
   {
     id: 'team-splitter',
