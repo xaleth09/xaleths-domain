@@ -104,7 +104,9 @@
     position: relative; width: 100%; aspect-ratio: 16 / 9;
     background: #000; border: 1px solid rgba(0, 212, 255, 0.25);
     overflow: hidden;
+    touch-action: pan-y;   /* keeps page scroll; frees 2-finger pinch for camera zoom */
   }
+  .video-frame:fullscreen, .video-frame.fake-full { touch-action: none; }
   .video-frame iframe, .video-frame #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   #cv-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
   #cv-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -125,15 +127,38 @@
   }
   .video-hud .vh-player::after { content: " ⇄"; opacity: 0.5; font-size: 10px; }
   .video-hud .vh-state { font-size: 9px; font-weight: 800; letter-spacing: 0.14em; color: var(--ink-2); }
+  /* fullscreen controls: ROI up top, vertical thumb-dials on the right;
+     the whole layer fades after 3s idle and any touch brings it back */
   .fs-tools {
-    position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 4;
-    display: flex; align-items: center; gap: 10px;
-    background: rgba(8, 13, 26, 0.82);
-    border: 1px solid rgba(0, 212, 255, 0.4);
-    padding: 8px 12px;
+    position: absolute; inset: 0; z-index: 4;
+    pointer-events: none;
+    transition: opacity 0.35s;
   }
-  .fs-tools input[type="range"] { flex: 1; min-width: 60px; }
+  .fs-tools.idle { opacity: 0; }
+  .fs-tools.idle * { pointer-events: none !important; }
+  .fs-tools #btn-roi-fs {
+    position: absolute; top: 8px; right: 68px;
+    pointer-events: auto;
+    background: rgba(8, 13, 26, 0.72);
+  }
+  .fs-rail {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    display: flex; gap: 12px; align-items: center;
+  }
+  .fs-dial {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    pointer-events: auto;
+    background: rgba(8, 13, 26, 0.72);
+    border: 1px solid rgba(0, 212, 255, 0.4);
+    padding: 10px 8px;
+  }
   .fs-tools .zlabel { font-size: 9px; font-weight: 800; letter-spacing: 0.12em; color: var(--ink-2); }
+  .vslider {
+    -webkit-appearance: slider-vertical;
+    writing-mode: vertical-lr; direction: rtl;
+    width: 28px; height: clamp(110px, 32vh, 240px);
+    touch-action: none;
+  }
   .fs-btn {
     position: absolute; top: 8px; right: 8px; z-index: 4;
     padding: 10px 16px; font-size: 20px; line-height: 1.1;
@@ -337,7 +362,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 20 · ENGINE:pool-watcher+ml</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 21 · ENGINE:pool-watcher+ml</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -366,9 +391,18 @@
           <button class="btn fs-btn" id="btn-fullscreen" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
           <div class="fs-tools" id="fs-tools" hidden>
             <button class="btn" id="btn-roi-fs">SET TABLE AREA</button>
-            <span class="zlabel" id="fs-zoom-label" hidden>ZOOM</span>
-            <input id="cfg-zoom-fs" type="range" min="1" max="8" step="0.1" value="1" hidden>
-            <span class="video-time num" id="zoom-val-fs" hidden>1.0×</span>
+            <div class="fs-rail">
+              <div class="fs-dial" id="fs-zoom-wrap" hidden>
+                <span class="zlabel" id="fs-zoom-label">ZOOM</span>
+                <input id="cfg-zoom-fs" class="vslider" type="range" min="1" max="8" step="0.1" value="1">
+                <span class="video-time num" id="zoom-val-fs">1.0×</span>
+              </div>
+              <div class="fs-dial" id="fs-ev-wrap" hidden>
+                <span class="zlabel">EXPO</span>
+                <input id="cfg-ev-fs" class="vslider" type="range" min="-2" max="2" step="0.1" value="0">
+                <span class="video-time num" id="ev-val-fs">0</span>
+              </div>
+            </div>
           </div>
           <div class="video-hud" id="video-hud" hidden>
             <div class="vh-secs num" id="vh-secs">–</div>
@@ -399,6 +433,11 @@
           <span style="font-size:9px;font-weight:800;letter-spacing:0.12em;color:var(--ink-2);">ZOOM</span>
           <input id="cfg-zoom" type="range" style="flex:1;" min="1" max="8" step="0.1" value="1">
           <span class="video-time num" id="zoom-val">1.0×</span>
+        </div>
+        <div class="src-row" id="ev-row" hidden>
+          <span style="font-size:9px;font-weight:800;letter-spacing:0.12em;color:var(--ink-2);">EXPOSURE</span>
+          <input id="cfg-ev" type="range" style="flex:1;" min="-2" max="2" step="0.1" value="0">
+          <span class="video-time num" id="ev-val">0</span>
         </div>
 
         <!-- file mode controls -->
@@ -542,7 +581,7 @@
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-  // ../../packages/core/src/watcher.ts
+  // packages/core/src/watcher.ts
   var WNT_9BALL = {
     name: "wnt-9ball",
     shotSeconds: 30,
@@ -818,7 +857,7 @@
     }
   };
 
-  // ../../packages/engine-classical/src/index.ts
+  // packages/engine-classical/src/index.ts
   var DEFAULT_CONFIG = {
     res: 240,
     diffThreshold: 24,
@@ -1165,7 +1204,7 @@
     }
   };
 
-  // ../../packages/engine-ml/src/index.ts
+  // packages/engine-ml/src/index.ts
   var COCO_CLASS_ROLES = {
     0: { role: "person" },
     32: { role: "ball" }
@@ -1492,7 +1531,7 @@
     }
   };
 
-  // src/main.js
+  // apps/admin-dashboard/src/main.js
   var RULES_PROFILE = WNT_9BALL;
   var RULES = {
     standardShot: RULES_PROFILE.shotSeconds,
@@ -1672,6 +1711,7 @@
     els.cvOverlay.hidden = yt;
     els.cameraControls.hidden = mode !== "camera";
     document.getElementById("zoom-row").hidden = mode !== "camera" || document.getElementById("zoom-row").dataset.avail !== "1";
+    document.getElementById("ev-row").hidden = mode !== "camera" || document.getElementById("ev-row").dataset.avail !== "1";
     els.fileControls.hidden = mode !== "file";
     els.ytControls.hidden = !yt;
     els.ytAnnot.hidden = !yt;
@@ -1754,7 +1794,7 @@
       document.getElementById("btn-camera").textContent = "STOP CAMERA";
       document.getElementById("btn-flip").disabled = false;
       pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — camera live (" + cameraFacing + ")", "gold");
-      setupZoom();
+      setupCameraControls();
       vision.start();
     } catch (err) {
       if (cameraStream) {
@@ -1784,6 +1824,11 @@
     const zr = document.getElementById("zoom-row");
     zr.hidden = true;
     zr.dataset.avail = "0";
+    document.getElementById("ev-row").hidden = true;
+    document.getElementById("fs-zoom-wrap").hidden = true;
+    document.getElementById("fs-ev-wrap").hidden = true;
+    cam.track = null;
+    cam.caps = {};
     if (els.cvVideo.srcObject) els.cvVideo.srcObject = null;
     document.getElementById("btn-camera").textContent = "START CAMERA";
     document.getElementById("btn-flip").disabled = true;
@@ -2226,40 +2271,134 @@
     });
     roiBtn.textContent = "CLEAR AREA";
   });
-  function setupZoom() {
-    const row = document.getElementById("zoom-row");
-    const sliders = [document.getElementById("cfg-zoom"), document.getElementById("cfg-zoom-fs")];
-    const vals = [document.getElementById("zoom-val"), document.getElementById("zoom-val-fs")];
-    const fsBits = [document.getElementById("fs-zoom-label"), sliders[1], vals[1]];
-    const track = cameraStream && cameraStream.getVideoTracks()[0];
-    const caps = track && track.getCapabilities ? track.getCapabilities() : {};
-    if (!caps.zoom) {
-      row.hidden = true;
-      row.dataset.avail = "0";
-      fsBits.forEach((el) => el.hidden = true);
-      return;
+  var cam = { track: null, caps: {} };
+  function setupCameraControls() {
+    cam.track = cameraStream && cameraStream.getVideoTracks()[0];
+    cam.caps = cam.track && cam.track.getCapabilities ? cam.track.getCapabilities() : {};
+    const settings = cam.track && cam.track.getSettings ? cam.track.getSettings() : {};
+    const zoomRow = document.getElementById("zoom-row");
+    const zoomSliders = [document.getElementById("cfg-zoom"), document.getElementById("cfg-zoom-fs")];
+    const zoomVals = [document.getElementById("zoom-val"), document.getElementById("zoom-val-fs")];
+    const zoomWrap = document.getElementById("fs-zoom-wrap");
+    if (cam.caps.zoom) {
+      zoomRow.hidden = false;
+      zoomRow.dataset.avail = "1";
+      zoomWrap.hidden = false;
+      const start = settings.zoom || cam.caps.zoom.min;
+      zoomSliders.forEach((sl) => {
+        sl.min = cam.caps.zoom.min;
+        sl.max = cam.caps.zoom.max;
+        sl.step = cam.caps.zoom.step || 0.1;
+        sl.value = start;
+        sl.oninput = () => {
+          applyZoom(Number(sl.value));
+          pokeFsTools();
+        };
+      });
+      zoomVals.forEach((v) => v.textContent = Number(start).toFixed(1) + "×");
+    } else {
+      zoomRow.hidden = true;
+      zoomRow.dataset.avail = "0";
+      zoomWrap.hidden = true;
     }
-    row.hidden = false;
-    row.dataset.avail = "1";
-    fsBits.forEach((el) => el.hidden = false);
-    const start = track.getSettings && track.getSettings().zoom || caps.zoom.min;
-    sliders.forEach((sl) => {
-      sl.min = caps.zoom.min;
-      sl.max = caps.zoom.max;
-      sl.step = caps.zoom.step || 0.1;
-      sl.value = start;
-      sl.oninput = () => {
-        const z = Number(sl.value);
-        track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {
-        });
-        sliders.forEach((o) => {
-          if (o !== sl) o.value = z;
-        });
-        vals.forEach((v) => v.textContent = z.toFixed(1) + "×");
-      };
-    });
-    vals.forEach((v) => v.textContent = Number(start).toFixed(1) + "×");
+    const evRow = document.getElementById("ev-row");
+    const evSliders = [document.getElementById("cfg-ev"), document.getElementById("cfg-ev-fs")];
+    const evVals = [document.getElementById("ev-val"), document.getElementById("ev-val-fs")];
+    const evWrap = document.getElementById("fs-ev-wrap");
+    const ev = cam.caps.exposureCompensation;
+    if (ev && ev.max > ev.min) {
+      evRow.hidden = false;
+      evRow.dataset.avail = "1";
+      evWrap.hidden = false;
+      const start = settings.exposureCompensation ?? 0;
+      evSliders.forEach((sl) => {
+        sl.min = ev.min;
+        sl.max = ev.max;
+        sl.step = ev.step || 0.1;
+        sl.value = start;
+        sl.oninput = () => {
+          const v = Number(sl.value);
+          cam.track.applyConstraints({ advanced: [{ exposureCompensation: v }] }).catch(() => {
+          });
+          evSliders.forEach((o) => {
+            if (o !== sl) o.value = v;
+          });
+          evVals.forEach((el) => el.textContent = (v > 0 ? "+" : "") + v.toFixed(1));
+          pokeFsTools();
+        };
+      });
+      evVals.forEach((el) => el.textContent = (start > 0 ? "+" : "") + Number(start).toFixed(1));
+    } else {
+      evRow.hidden = true;
+      evRow.dataset.avail = "0";
+      evWrap.hidden = true;
+    }
   }
+  function applyZoom(z) {
+    if (!cam.track || !cam.caps.zoom) return;
+    z = Math.max(cam.caps.zoom.min, Math.min(cam.caps.zoom.max, z));
+    cam.track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {
+    });
+    for (const id of ["cfg-zoom", "cfg-zoom-fs"]) document.getElementById(id).value = z;
+    for (const id of ["zoom-val", "zoom-val-fs"]) document.getElementById(id).textContent = z.toFixed(1) + "×";
+  }
+  var pinch = { pts: /* @__PURE__ */ new Map(), startDist: 0, startZoom: 0 };
+  var frameForGestures = document.querySelector(".video-frame");
+  function gestureTargetOk(e) {
+    return e.target.id === "cv-video" || e.target.id === "cv-overlay" || e.target === frameForGestures;
+  }
+  frameForGestures.addEventListener("pointerdown", (e) => {
+    if (roiSelect.picking || !gestureTargetOk(e)) return;
+    pinch.pts.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), moved: false });
+    pinch.startDist = 0;
+    if (pinch.pts.size === 2 && cam.caps.zoom) {
+      const [a, b] = [...pinch.pts.values()];
+      pinch.startDist = Math.hypot(a.x - b.x, a.y - b.y);
+      pinch.startZoom = Number(document.getElementById("cfg-zoom").value) || cam.caps.zoom.min;
+    }
+  });
+  frameForGestures.addEventListener("pointermove", (e) => {
+    const p = pinch.pts.get(e.pointerId);
+    if (!p) return;
+    if (Math.abs(e.clientX - p.x) > 8 || Math.abs(e.clientY - p.y) > 8) p.moved = true;
+    pinch.pts.set(e.pointerId, { ...p, cx: e.clientX, cy: e.clientY });
+    if (pinch.pts.size === 2 && cam.caps.zoom) {
+      const [a, b] = [...pinch.pts.values()];
+      const d = Math.hypot((a.cx ?? a.x) - (b.cx ?? b.x), (a.cy ?? a.y) - (b.cy ?? b.y));
+      if (!pinch.startDist) {
+        pinch.startDist = d;
+        pinch.startZoom = Number(document.getElementById("cfg-zoom").value) || cam.caps.zoom.min;
+      } else if (d > 0) {
+        applyZoom(pinch.startZoom * (d / pinch.startDist));
+      }
+    }
+  });
+  function endPointer(e) {
+    const p = pinch.pts.get(e.pointerId);
+    pinch.pts.delete(e.pointerId);
+    pinch.startDist = 0;
+    if (p && !p.moved && pinch.pts.size === 0 && e.type === "pointerup" && performance.now() - p.t < 350 && MODE.current === "camera" && cam.track && !roiSelect.picking && gestureTargetOk(e)) {
+      const v = els.cvVideo, c = els.cvOverlay;
+      const r = c.getBoundingClientRect();
+      const fit = containFit(v, r.width, r.height);
+      const nx = (e.clientX - r.left - fit.ox) / fit.sw, ny = (e.clientY - r.top - fit.oy) / fit.sh;
+      if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) {
+        cam.track.applyConstraints({ advanced: [{ exposureMode: "continuous", pointsOfInterest: [{ x: nx, y: ny }] }] }).catch(() => {
+        });
+      }
+    }
+  }
+  frameForGestures.addEventListener("pointerup", endPointer);
+  frameForGestures.addEventListener("pointercancel", endPointer);
+  var fsIdleTimer = 0;
+  function pokeFsTools() {
+    const t = document.getElementById("fs-tools");
+    if (t.hidden) return;
+    t.classList.remove("idle");
+    clearTimeout(fsIdleTimer);
+    fsIdleTimer = setTimeout(() => t.classList.add("idle"), 3e3);
+  }
+  frameForGestures.addEventListener("pointerdown", pokeFsTools);
   var frameEl = document.querySelector(".video-frame");
   var fsBtn = document.getElementById("btn-fullscreen");
   async function exitFs() {
@@ -2783,7 +2922,9 @@
     const show = isFrameFullscreen();
     hud.hidden = !show;
     const tools = document.getElementById("fs-tools");
+    const toolsWereHidden = tools.hidden;
     tools.hidden = !show || MODE.current === "youtube";
+    if (toolsWereHidden && !tools.hidden) pokeFsTools();
     if (!show) return;
     syncRoiBtns();
     const secsEl = document.getElementById("vh-secs");
