@@ -108,6 +108,17 @@
   .video-frame iframe, .video-frame #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   #cv-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
   #cv-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .fs-btn {
+    position: absolute; top: 8px; right: 8px; z-index: 4;
+    padding: 4px 10px; font-size: 14px; line-height: 1.2;
+    background: rgba(8, 13, 26, 0.7);
+  }
+  .video-frame:fullscreen { border: 0; background: #000; }
+  .video-frame.fake-full {
+    position: fixed; inset: 0; z-index: 999;
+    width: 100vw; height: 100dvh; aspect-ratio: auto;
+    border: 0; background: #000;
+  }
   .video-fallback {
     position: absolute; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 16px;
@@ -300,7 +311,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 12</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 13</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -326,6 +337,7 @@
 
         <div class="video-frame">
           <div id="yt-player" hidden></div>
+          <button class="btn fs-btn" id="btn-fullscreen" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
           <video id="cv-video" playsinline muted autoplay></video>
           <canvas id="cv-overlay"></canvas>
           <div class="video-fallback" id="video-fallback" hidden>
@@ -1318,6 +1330,33 @@ function drawOverlay(vs) {
     ctx.fillText(unstable ? "CAMERA MOVING — HOLD" : vs.state + clock, 14, 21);
   }
 }
+
+/* ---------------- fullscreen ---------------- */
+const frameEl = document.querySelector(".video-frame");
+const fsBtn = document.getElementById("btn-fullscreen");
+async function exitFs() {
+  if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (e) {} }
+  frameEl.classList.remove("fake-full");
+  document.body.style.overflow = "";
+  fsBtn.textContent = "⛶";
+}
+fsBtn.addEventListener("click", async () => {
+  if (document.fullscreenElement || frameEl.classList.contains("fake-full")) return exitFs();
+  try {
+    // fullscreen the CONTAINER so the overlay canvas rides along
+    if (frameEl.requestFullscreen) await frameEl.requestFullscreen();
+    else if (frameEl.webkitRequestFullscreen) frameEl.webkitRequestFullscreen();
+    else throw new Error("unsupported");
+  } catch (e) {
+    // iPhones block element fullscreen — fixed-position fallback
+    frameEl.classList.add("fake-full");
+    document.body.style.overflow = "hidden";
+  }
+  fsBtn.textContent = "✕";
+});
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement) { frameEl.classList.remove("fake-full"); document.body.style.overflow = ""; fsBtn.textContent = "⛶"; }
+});
 
 /* ---------------- control panel bindings ---------------- */
 function bindNum(id, key, min, max) {
