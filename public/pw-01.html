@@ -300,7 +300,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 10</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 11</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -353,6 +353,14 @@
         </div>
 
         <!-- youtube mode controls -->
+        <div class="annot-help show" id="yt-explainer" hidden style="margin-top:10px;">
+          <b>YouTube mode = playback + event track.</b> Browsers seal an embed's pixels, so the live
+          vision engine can't watch this feed. Table 1 instead replays a list of timestamped events
+          (address, shot, break…) synced to the video clock. <b>ANNOTATE MODE</b> records that list by
+          hand while you watch; the CV pipeline will produce the same file automatically later.
+          Want the real engine on this same match? Save it as a video file (screen-record works) and
+          load it under <b>VIDEO FILE</b>.
+        </div>
         <div class="url-row" id="yt-controls" hidden>
           <input id="video-url" class="url-input" type="text" spellcheck="false" autocomplete="off" disabled
             placeholder="YouTube URL or video ID" aria-label="Video source URL">
@@ -637,6 +645,7 @@ function setMode(mode) {
   els.fileControls.hidden = mode !== "file";
   els.ytControls.hidden = !yt;
   els.ytAnnot.hidden = !yt;
+  document.getElementById("yt-explainer").hidden = !yt;
   els.visionPanel.classList.toggle("vp-idle", yt);
   document.getElementById("vp-yt-note").hidden = !yt;
   if (yt) document.getElementById("vp-state").textContent = "IDLE — EMBED SEALED";
