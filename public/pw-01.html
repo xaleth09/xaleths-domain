@@ -30,27 +30,31 @@
     line-height: 1.5;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
-    /* faint circuit-grid texture over the dark base */
     background-image:
       linear-gradient(rgba(0, 212, 255, 0.045) 1px, transparent 1px),
       linear-gradient(90deg, rgba(0, 212, 255, 0.045) 1px, transparent 1px);
     background-size: 44px 44px;
   }
-  .page { max-width: 1380px; margin: 0 auto; padding: 22px clamp(14px, 3vw, 36px) 120px; }
+  .page { max-width: 1720px; margin: 0 auto; padding: 22px clamp(14px, 2vw, 32px) 60px; }
   .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
-  /* ============ header — PET wordmark convention ============ */
+  .glow-panel {
+    background: var(--surface);
+    border: 1px solid var(--cyan-dim);
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.25), inset 0 0 4px rgba(0, 212, 255, 0.05);
+  }
+
+  /* ============ header ============ */
   header {
     display: flex; align-items: center; justify-content: space-between; gap: 16px;
     flex-wrap: wrap;
     border: 1px solid var(--cyan);
     box-shadow: 0 0 8px rgba(0, 212, 255, 0.4), inset 0 0 4px rgba(0, 212, 255, 0.05);
     background: var(--surface);
-    padding: 14px 20px;
-    margin-bottom: 10px;
+    padding: 12px 20px;
+    margin-bottom: 14px;
   }
   .wordmark { display: flex; align-items: center; gap: 12px; }
-  .wordmark svg { flex: none; }
   .wordmark .name { font-size: 18px; font-weight: 800; letter-spacing: 0.18em; }
   .wordmark .name span { color: var(--cyan); }
   .section-label { text-align: center; }
@@ -67,26 +71,67 @@
   .live-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); animation: blink 1.6s infinite; }
   @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 
-  .sim-note {
-    font-size: 11px; color: var(--ink-2); letter-spacing: 0.04em;
-    margin: 0 0 18px; padding: 8px 20px;
-    border: 1px solid rgba(0, 212, 255, 0.18); background: rgba(13, 21, 38, 0.6);
+  .controls { display: flex; gap: 8px; }
+  .btn {
+    font-family: var(--font-ui); cursor: pointer;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
+    color: var(--cyan); background: var(--surface);
+    border: 1px solid var(--cyan-dim); padding: 6px 12px;
   }
-  .sim-note b { color: var(--ink); }
+  .btn:hover { box-shadow: 0 0 10px rgba(0, 212, 255, 0.5); border-color: var(--cyan); }
+  .btn.active { color: var(--gold); border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 166, 35, 0.5); background: rgba(245, 166, 35, 0.08); }
 
-  /* ============ summary stat tiles ============ */
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
-  .stat {
-    background: var(--surface); padding: 12px 16px;
-    border: 1px solid rgba(0, 212, 255, 0.3);
-    box-shadow: 0 0 6px rgba(0, 212, 255, 0.15), inset 0 0 4px rgba(0, 212, 255, 0.04);
+  /* ============ 3-column layout ============ */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(340px, 420px) minmax(0, 1fr) clamp(240px, 18vw, 320px);
+    gap: 16px;
+    align-items: start;
   }
-  .stat .k { font-size: 10px; letter-spacing: 0.14em; color: var(--ink-2); font-weight: 700; }
-  .stat .v { font-size: 24px; font-weight: 800; margin-top: 2px; }
-  .stat .v small { font-size: 12px; font-weight: 700; color: var(--ink-2); letter-spacing: 0.08em; }
+  @media (max-width: 1150px) {
+    .layout { grid-template-columns: 1fr; }
+    .feed-strip { position: static !important; max-height: 420px !important; }
+  }
 
-  /* ============ table grid ============ */
-  .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+  /* ---- left column: video + live table ---- */
+  .left-col { display: flex; flex-direction: column; gap: 16px; }
+  .video-panel { padding: 12px; }
+  .video-frame {
+    position: relative; width: 100%; aspect-ratio: 16 / 9;
+    background: #000; border: 1px solid rgba(0, 212, 255, 0.25);
+    overflow: hidden;
+  }
+  .video-frame iframe, .video-frame #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video-fallback {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 16px;
+  }
+  .video-fallback .t { font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: var(--red); }
+  .video-fallback .d { font-size: 11px; color: var(--ink-3); }
+  .video-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .feed-state {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.14em;
+    padding: 4px 8px; border: 1px solid;
+  }
+  .feed-state.playing { color: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 6px rgba(0,212,255,0.4); }
+  .feed-state.paused  { color: var(--gold); border-color: var(--gold); }
+  .feed-state.lost    { color: var(--red); border-color: var(--red); }
+  .video-time { font-size: 11px; color: var(--ink-2); letter-spacing: 0.06em; }
+  .annot-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .annot-help {
+    display: none; margin-top: 10px; padding: 10px 12px;
+    border: 1px solid rgba(245, 166, 35, 0.4); background: rgba(245, 166, 35, 0.05);
+    font-size: 11px; color: var(--ink-2); line-height: 1.7;
+  }
+  .annot-help.show { display: block; }
+  .annot-help b { color: var(--gold); }
+  .annot-help kbd {
+    font-family: var(--font-num); font-size: 10px; color: var(--cyan);
+    border: 1px solid rgba(0, 212, 255, 0.4); padding: 0 5px; margin-right: 2px;
+  }
+
+  /* ---- table cards (shared by live + sim) ---- */
   .table-card {
     background: var(--surface);
     border: 1px solid var(--cyan-dim);
@@ -95,12 +140,14 @@
     display: flex; flex-direction: column; gap: 14px;
     transition: box-shadow 0.3s, border-color 0.3s;
   }
+  .table-card.live-card { border-color: rgba(245, 166, 35, 0.6); box-shadow: 0 0 10px rgba(245, 166, 35, 0.3), inset 0 0 4px rgba(245, 166, 35, 0.05); }
   .table-card.state-running { border-color: var(--cyan); box-shadow: 0 0 14px rgba(0, 212, 255, 0.5), inset 0 0 6px rgba(0, 212, 255, 0.08); }
   .table-card.state-critical { border-color: var(--red); box-shadow: 0 0 16px rgba(255, 68, 68, 0.55), inset 0 0 6px rgba(255, 68, 68, 0.1); }
   .table-card.state-expired { border-color: var(--red); box-shadow: 0 0 16px rgba(255, 68, 68, 0.7); }
 
   .tc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
   .tc-head .tno { font-size: 13px; font-weight: 800; letter-spacing: 0.2em; color: var(--cyan); }
+  .tc-head .tno .live-tag { color: var(--gold); }
   .tc-head .race { font-size: 10px; letter-spacing: 0.12em; color: var(--ink-2); font-weight: 700; }
 
   .state-badge {
@@ -115,16 +162,12 @@
   .state-badge.idle     { color: var(--ink-3); border-color: rgba(74, 106, 125, 0.5); }
   .state-badge.expired  { color: var(--red); border-color: var(--red); box-shadow: 0 0 8px rgba(255, 68, 68, 0.6); }
 
-  /* clock zone: ring + readout */
   .clock-zone { display: flex; align-items: center; gap: 18px; }
   .ring-wrap { position: relative; width: 118px; height: 118px; flex: none; }
   .ring-wrap svg { width: 118px; height: 118px; transform: rotate(-90deg); }
   .ring-track { fill: none; stroke: rgba(0, 212, 255, 0.12); stroke-width: 6; }
   .ring-val { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke 0.3s; }
-  .ring-secs {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-  }
+  .ring-secs { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .ring-secs .t { font-size: 34px; font-weight: 800; line-height: 1; }
   .ring-secs .u { font-size: 9px; letter-spacing: 0.18em; color: var(--ink-3); font-weight: 700; margin-top: 3px; }
   .clock-meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -133,7 +176,6 @@
   .cv-line { font-size: 11px; color: var(--ink-3); letter-spacing: 0.04em; }
   .cv-line b { color: var(--ink-2); font-weight: 700; }
 
-  /* players */
   .players { display: flex; flex-direction: column; gap: 6px; }
   .player {
     display: flex; align-items: center; gap: 10px;
@@ -151,38 +193,58 @@
   .player .ext.used { color: var(--ink-3); text-decoration: line-through; }
   .player .score { font-size: 18px; font-weight: 800; min-width: 26px; text-align: right; }
 
-  /* ============ event feed — BN InfoBar ============ */
-  .feed {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    background: rgba(8, 13, 26, 0.92);
-    backdrop-filter: blur(6px);
-    border-top: 1px solid var(--cyan);
-    box-shadow: 0 0 12px rgba(0, 212, 255, 0.35);
-    padding: 8px clamp(14px, 3vw, 36px);
+  /* ---- middle column: dashboard section ---- */
+  .dash-panel { padding: 16px 18px 18px; }
+  .dash-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .dash-head .t { font-size: 12px; font-weight: 800; letter-spacing: 0.2em; color: var(--cyan); }
+  .dash-head .s { font-size: 10px; letter-spacing: 0.12em; color: var(--ink-3); font-weight: 700; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat {
+    background: var(--surface-2); padding: 10px 14px;
+    border: 1px solid rgba(0, 212, 255, 0.2);
   }
-  .feed-inner { max-width: 1380px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
-  .feed-label { font-size: 9px; font-weight: 800; letter-spacing: 0.18em; color: var(--cyan); flex: none; }
-  .feed-items { overflow: hidden; flex: 1; display: flex; flex-direction: column-reverse; max-height: 54px; }
-  .feed-item { flex: none; font-size: 11px; line-height: 18px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .feed-item .ts { color: var(--ink-3); }
-  .feed-item .tno { color: var(--cyan); font-weight: 700; }
-  .feed-item .ev { color: var(--ink); font-weight: 700; }
-  .feed-item.foul .ev { color: var(--red); }
-  .feed-item.gold .ev { color: var(--gold); }
+  .stat .k { font-size: 9px; letter-spacing: 0.14em; color: var(--ink-2); font-weight: 700; }
+  .stat .v { font-size: 22px; font-weight: 800; margin-top: 2px; }
+  .stat .v small { font-size: 11px; font-weight: 700; color: var(--ink-2); letter-spacing: 0.08em; }
+  .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 
-  /* controls */
-  .controls { display: flex; gap: 8px; }
-  .btn {
-    font-family: var(--font-ui); cursor: pointer;
-    font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
-    color: var(--cyan); background: var(--surface);
-    border: 1px solid var(--cyan-dim); padding: 6px 12px;
+  /* ---- right strip: event feed ---- */
+  .feed-strip {
+    position: sticky; top: 14px;
+    max-height: calc(100vh - 28px);
+    display: flex; flex-direction: column;
+    padding: 0;
+    overflow: hidden;
   }
-  .btn:hover { box-shadow: 0 0 10px rgba(0, 212, 255, 0.5); border-color: var(--cyan); }
-  .btn.active { color: var(--gold); border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 166, 35, 0.5); background: rgba(245, 166, 35, 0.08); }
+  .feed-head {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.25);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .feed-head .t { font-size: 10px; font-weight: 800; letter-spacing: 0.18em; color: var(--cyan); }
+  .feed-head .c { font-size: 9px; letter-spacing: 0.12em; color: var(--ink-3); font-weight: 700; }
+  .feed-scroll { overflow-y: auto; padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 6px; scrollbar-width: thin; scrollbar-color: rgba(0,212,255,0.3) transparent; }
+  .feed-item {
+    border: 1px solid rgba(0, 212, 255, 0.12);
+    background: var(--surface-2);
+    border-left: 2px solid rgba(0, 212, 255, 0.3);
+    padding: 6px 9px;
+    font-size: 10.5px; line-height: 1.5; color: var(--ink-2);
+  }
+  .feed-item .row1 { display: flex; justify-content: space-between; gap: 8px; }
+  .feed-item .tno { color: var(--cyan); font-weight: 800; letter-spacing: 0.08em; font-size: 9.5px; }
+  .feed-item .tno.live { color: var(--gold); }
+  .feed-item .ts { color: var(--ink-3); font-size: 9.5px; }
+  .feed-item .ev { color: var(--ink); font-weight: 600; display: block; margin-top: 1px; word-break: break-word; }
+  .feed-item.foul { border-left-color: var(--red); } .feed-item.foul .ev { color: var(--red); }
+  .feed-item.gold { border-left-color: var(--gold); } .feed-item.gold .ev { color: var(--gold); }
+  .feed-item.latest {
+    border-color: var(--gold); border-left-color: var(--gold);
+    box-shadow: 0 0 8px rgba(245, 166, 35, 0.35);
+  }
+  .feed-item.latest .row1::after { content: "◂ LATEST"; color: var(--gold); font-size: 8.5px; font-weight: 800; letter-spacing: 0.12em; }
 
-  footer { margin-top: 34px; font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; }
-  footer a { color: var(--ink-2); }
+  footer { margin-top: 26px; font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; }
 </style>
 </head>
 <body>
@@ -190,7 +252,6 @@
 
   <header>
     <div class="wordmark">
-      <!-- hex accent, BN header convention -->
       <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
         <polygon points="13,1.5 23.5,7.5 23.5,18.5 13,24.5 2.5,18.5 2.5,7.5"
           fill="none" stroke="#00d4ff" stroke-width="1.4" opacity="0.9"/>
@@ -201,107 +262,174 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">WNT EVENT · ALL TABLES</div>
+      <div class="sub">TABLE 1 LIVE FEED · TABLES 2–6 SIMULATED</div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
-        <button class="btn" id="btn-pause">PAUSE</button>
+        <button class="btn" id="btn-pause">PAUSE SIM</button>
         <button class="btn active" data-speed="1">1×</button>
         <button class="btn" data-speed="2">2×</button>
         <button class="btn" data-speed="4">4×</button>
       </div>
-      <div class="live-badge"><span class="dot"></span>SIM FEED</div>
+      <div class="live-badge"><span class="dot"></span>MIXED FEED</div>
     </div>
   </header>
 
-  <p class="sim-note"><b>Concept demo.</b> Every clock below is driven by a simulated computer-vision event stream — the same event contract (<span class="num">PLAYER_ADDRESSING · SHOT_TAKEN · BALLS_AT_REST · BREAK_DETECTED · GAME_OVER</span>) a real per-table vision system would emit. No refs pressing timers: address detection starts the clock, shot detection holds it.</p>
+  <div class="layout">
 
-  <div class="stats" id="stats">
-    <div class="stat"><div class="k">TABLES LIVE</div><div class="v num" id="st-tables">—</div></div>
-    <div class="stat"><div class="k">CLOCKS RUNNING</div><div class="v num" id="st-running">—</div></div>
-    <div class="stat"><div class="k">SHOT-CLOCK FOULS</div><div class="v num" id="st-fouls">0</div></div>
-    <div class="stat"><div class="k">EXTENSIONS USED</div><div class="v num" id="st-exts">0</div></div>
-    <div class="stat"><div class="k">AVG SHOT TIME</div><div class="v num" id="st-avg">—<small> S</small></div></div>
+    <!-- LEFT: video + live table -->
+    <div class="left-col">
+      <div class="glow-panel video-panel">
+        <div class="video-frame">
+          <div id="yt-player"></div>
+          <div class="video-fallback" id="video-fallback" hidden>
+            <div class="t">VIDEO UNAVAILABLE</div>
+            <div class="d">The YouTube player failed to load. Table 1 holds in FEED LOST until the feed returns.</div>
+          </div>
+        </div>
+        <div class="video-meta">
+          <span class="feed-state lost" id="feed-state">FEED IDLE</span>
+          <span class="video-time num" id="video-time">--:--</span>
+        </div>
+        <div class="annot-row">
+          <button class="btn" id="btn-annotate">ANNOTATE MODE</button>
+          <button class="btn" id="btn-export">EXPORT TRACK</button>
+          <span class="video-time" id="annot-count"></span>
+        </div>
+        <div class="annot-help" id="annot-help">
+          <b>Annotate while watching</b> — keys record events at the current video time:<br>
+          <kbd>A</kbd> player addressing (clock starts) · <kbd>S</kbd> shot taken (clock holds) ·
+          <kbd>B</kbd> break shot · <kbd>T</kbd> turn changes hands · <kbd>E</kbd> extension called ·
+          <kbd>G</kbd> game won by player at table · <kbd>Z</kbd> undo last<br>
+          Events save to this browser (localStorage). EXPORT TRACK copies the JSON — paste it into
+          <span class="num">LIVE_TRACK.events</span> in this file to bake it in. The CV pipeline will
+          emit this exact format.
+        </div>
+      </div>
+
+      <div class="table-card live-card" id="live-card"><!-- rendered by JS --></div>
+    </div>
+
+    <!-- MIDDLE: simulated dashboard section -->
+    <div class="glow-panel dash-panel">
+      <div class="dash-head">
+        <span class="t">ALL TABLES</span>
+        <span class="s">TABLES 2–6 · SIMULATED CV FEED</span>
+      </div>
+      <div class="stats" id="stats">
+        <div class="stat"><div class="k">TABLES LIVE</div><div class="v num" id="st-tables">—</div></div>
+        <div class="stat"><div class="k">CLOCKS RUNNING</div><div class="v num" id="st-running">—</div></div>
+        <div class="stat"><div class="k">SHOT-CLOCK FOULS</div><div class="v num" id="st-fouls">0</div></div>
+        <div class="stat"><div class="k">EXTENSIONS USED</div><div class="v num" id="st-exts">0</div></div>
+        <div class="stat"><div class="k">AVG SHOT TIME</div><div class="v num" id="st-avg">—<small> S</small></div></div>
+      </div>
+      <div class="tables" id="tables"></div>
+    </div>
+
+    <!-- RIGHT: event feed strip -->
+    <div class="glow-panel feed-strip">
+      <div class="feed-head">
+        <span class="t">CV EVENT FEED</span>
+        <span class="c num" id="feed-count">0 EVENTS</span>
+      </div>
+      <div class="feed-scroll" id="feed"></div>
+    </div>
+
   </div>
-
-  <div class="tables" id="tables"></div>
 
   <footer>
-    POOL WATCHER — concept dashboard for camera-based shot clock officiating. Rules modeled: 30s standard / 60s after the break, one 30s extension per player per rack, clock held between shots until the incoming player addresses. Part of the Pool Watcher project.
+    POOL WATCHER — concept dashboard for camera-based shot clock officiating. Table 1 is synced to the embedded match video; its event track is hand-annotated until the CV pipeline lands (same JSON contract). Tables 2–6 run the simulator. Rules modeled: 30s standard / 60s after the break, one 30s extension per player per rack.
   </footer>
-</div>
-
-<div class="feed" role="log" aria-label="Vision event feed">
-  <div class="feed-inner">
-    <div class="feed-label">CV EVENT FEED</div>
-    <div class="feed-items" id="feed"></div>
-  </div>
 </div>
 
 <script>
 "use strict";
 /* ============================================================
-   Pool Watcher — simulated tournament.
-   Each table runs a shot-clock state machine fed by a fake CV
-   event stream; the real product swaps the simulator for edge
-   inference emitting the same events.
+   Pool Watcher PW-01 v2
+   - Table 1: LIVE — synced to the embedded YouTube match via the
+     IFrame API clock. Its events come from LIVE_TRACK (hand-
+     annotated for now; the CV pipeline emits the same format).
+   - Tables 2–6: simulator (same state machine).
    ============================================================ */
 
-const RULES = {
-  standardShot: 30,   // seconds
-  afterBreak: 60,     // first shot after the break
-  extension: 30,      // one per player per rack
+const RULES = { standardShot: 30, afterBreak: 60, extension: 30 };
+
+/* ---------------- LIVE TRACK ----------------
+   Event contract (what the CV pipeline will emit):
+   { t: <video seconds>, e: "ADDRESS"|"SHOT"|"BREAK"|"TURN"|"EXT"|"GAME" }
+   Events must be time-sorted. State at any video time = deterministic
+   replay of all events <= t, so seeking always reconciles.        */
+const LIVE_TRACK = {
+  videoId: "N_oxfCVIJtk",
+  players: ["Player 1", "Player 2"],   // set real names once known
+  raceTo: 9,
+  events: []                            // paste EXPORT TRACK output here
 };
 
-const NAMES = [
-  ["F. Gorst", "J. Filler"], ["S. Souquet", "F. Sanchez-Ruiz"],
-  ["E. Kaci", "M. Konrad"], ["K. Boyes", "W. Acosta"],
-  ["A. Kazakis", "N. Ekonomopoulos"], ["Ko P.C.", "D. Appleton"],
-];
+/* ---------------- shared feed ---------------- */
+const feedEl = document.getElementById("feed");
+const feedCountEl = document.getElementById("feed-count");
+let feedTotal = 0;
+function fmtClock(d) {
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
+}
+function pushFeed(label, isLive, ev, cls) {
+  feedTotal++;
+  const item = document.createElement("div");
+  item.className = "feed-item" + (cls ? " " + cls : "");
+  item.innerHTML = '<div class="row1"><span class="tno' + (isLive ? " live" : "") + '"></span><span class="ts num"></span></div><span class="ev"></span>';
+  item.querySelector(".tno").textContent = label;
+  item.querySelector(".ts").textContent = fmtClock(new Date());
+  item.querySelector(".ev").textContent = ev;
+  const prev = feedEl.querySelector(".latest");
+  if (prev) prev.classList.remove("latest");
+  item.classList.add("latest");
+  feedEl.prepend(item);
+  while (feedEl.children.length > 120) feedEl.lastChild.remove();
+  feedCountEl.textContent = feedTotal + " EVENTS";
+  if (feedEl.scrollTop < 30) feedEl.scrollTop = 0;   // stay pinned to newest unless user scrolled away
+}
 
+/* ============================================================
+   SIM TABLES 2–6 (unchanged state machine)
+   ============================================================ */
+const NAMES = [
+  ["S. Souquet", "F. Sanchez-Ruiz"], ["E. Kaci", "M. Konrad"],
+  ["K. Boyes", "W. Acosta"], ["A. Kazakis", "N. Ekonomopoulos"], ["Ko P.C.", "D. Appleton"],
+];
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.floor(Math.random() * a.length)];
-
 let fouls = 0, extsUsed = 0;
 const shotTimes = [];
 
 class Table {
   constructor(i) {
-    this.no = i + 1;
+    this.no = i + 2;                      // sim tables are 2..6
     this.players = NAMES[i % NAMES.length].map(n => ({ name: n, score: 0, ext: true }));
     this.raceTo = pick([9, 10, 11]);
-    this.turn = Math.round(Math.random());   // index of player at table
+    this.turn = Math.round(Math.random());
     this.breaker = this.turn;
-    this.phase = "RACKING";                  // RACKING | GRACE | ADDRESSING | EXPIRED | MATCH_OVER
-    this.nextIsBreak = true;                 // next address is the break shot
-    this.afterBreak = false;                 // next shot gets 60s
+    this.phase = "RACKING";
+    this.nextIsBreak = true;
+    this.afterBreak = false;
     this.clock = RULES.standardShot;
     this.limit = RULES.standardShot;
-    this.wait = rand(2, 5);                  // seconds until next sim event
+    this.wait = rand(2, 5);
     this.lastEvent = "RACK_SET";
-    this.shotStart = 0;
   }
-
-  emit(ev, cls) { pushFeed(this, ev, cls); this.lastEvent = ev; }
-
-  /* advance the simulation by dt seconds */
+  emit(ev, cls) { pushFeed("TABLE " + this.no, false, ev, cls); this.lastEvent = ev; }
   tick(dt) {
     if (this.phase === "MATCH_OVER") return;
-
     if (this.phase === "ADDRESSING") {
       this.clock -= dt;
-      if (this.clock <= 0) {                 // shot-clock foul
-        this.clock = 0;
-        this.phase = "EXPIRED";
-        fouls++;
-        this.emit("SHOT_CLOCK_FOUL — ball in hand " + this.opponent().name, "foul");
+      if (this.clock <= 0) {
+        this.clock = 0; this.phase = "EXPIRED"; fouls++;
+        this.emit("SHOT_CLOCK_FOUL — ball in hand " + this.players[1 - this.turn].name, "foul");
         this.wait = rand(4, 7);
         return;
       }
-      // decide whether the sim "takes the shot" now
       this.wait -= dt;
       if (this.wait <= 0) {
-        // low clock? maybe burn the extension instead of shooting
         const p = this.players[this.turn];
         if (this.clock < 8 && p.ext && Math.random() < 0.3) {
           p.ext = false; extsUsed++;
@@ -314,23 +442,11 @@ class Table {
       }
       return;
     }
-
-    // RACKING / GRACE / EXPIRED — clock is held; count down to next event
     this.wait -= dt;
     if (this.wait > 0) return;
-
-    if (this.phase === "RACKING") {
-      this.startAddress();
-    } else if (this.phase === "GRACE") {
-      this.startAddress();
-    } else if (this.phase === "EXPIRED") {
-      // opponent takes over with ball in hand
-      this.turn = 1 - this.turn;
-      this.phase = "GRACE";
-      this.wait = rand(2, 5);
-    }
+    if (this.phase === "RACKING" || this.phase === "GRACE") this.startAddress();
+    else if (this.phase === "EXPIRED") { this.turn = 1 - this.turn; this.phase = "GRACE"; this.wait = rand(2, 5); }
   }
-
   startAddress() {
     const isBreak = this.nextIsBreak;
     this.limit = this.afterBreak ? RULES.afterBreak : RULES.standardShot;
@@ -338,13 +454,11 @@ class Table {
     this.phase = "ADDRESSING";
     this.shotStart = this.limit;
     this.emit("PLAYER_ADDRESSING — clock " + this.limit + "s" + (isBreak ? " (break)" : this.afterBreak ? " (after break)" : ""));
-    // how long they'll take, occasionally flirting with (or blowing) the clock
     const r = Math.random();
-    if (r < 0.05) this.wait = this.limit + 5;              // will foul unless extension saves them
+    if (r < 0.05) this.wait = this.limit + 5;
     else if (r < 0.25) this.wait = rand(this.limit * 0.7, this.limit - 1);
     else this.wait = rand(4, this.limit * 0.6);
   }
-
   takeShot() {
     shotTimes.push(this.shotStart - this.clock);
     const wasBreak = this.nextIsBreak;
@@ -352,20 +466,12 @@ class Table {
     this.afterBreak = wasBreak;
     this.emit(wasBreak ? "BREAK_DETECTED" : "SHOT_TAKEN", wasBreak ? "gold" : undefined);
     this.phase = "GRACE";
-    this.wait = rand(3, 8);                  // balls rolling + walk-around
-
+    this.wait = rand(3, 8);
     if (!wasBreak) {
-      if (Math.random() < 0.10) {            // rack won
-        this.gameOver();
-      } else if (Math.random() < 0.35) {     // missed / safety — table changes hands
-        this.turn = 1 - this.turn;
-        this.wait = rand(4, 9);
-      }
-    } else if (Math.random() < 0.2) {        // dry break
-      this.turn = 1 - this.turn;
-    }
+      if (Math.random() < 0.10) this.gameOver();
+      else if (Math.random() < 0.35) { this.turn = 1 - this.turn; this.wait = rand(4, 9); }
+    } else if (Math.random() < 0.2) this.turn = 1 - this.turn;
   }
-
   gameOver() {
     const w = this.players[this.turn];
     w.score++;
@@ -373,11 +479,14 @@ class Table {
     if (w.score >= this.raceTo) {
       this.phase = "MATCH_OVER";
       this.emit("MATCH_OVER — " + w.name + " wins " + this.players[0].score + "–" + this.players[1].score, "gold");
-      // fresh match on the same table after a break
-      setTimeout(() => { resetTable(this); }, 12000 / sim.speed);
+      setTimeout(() => {
+        const i = this.no - 2;
+        tables[i] = new Table(i);
+        tables[i].emit("NEW_MATCH — " + tables[i].players[0].name + " vs " + tables[i].players[1].name);
+        buildSimCards();
+      }, 12000 / sim.speed);
       return;
     }
-    // new rack: extensions reset, winner (alternate) breaks
     this.players.forEach(p => p.ext = true);
     this.breaker = 1 - this.breaker;
     this.turn = this.breaker;
@@ -386,110 +495,211 @@ class Table {
     this.phase = "RACKING";
     this.wait = rand(8, 14);
   }
-
-  opponent() { return this.players[1 - this.turn]; }
 }
 
-function resetTable(t) {
-  const i = t.no - 1;
-  tables[i] = new Table(i);
-  tables[i].emit("NEW_MATCH — " + tables[i].players[0].name + " vs " + tables[i].players[1].name);
-  buildCards();
+/* ============================================================
+   LIVE TABLE 1 — deterministic replay of LIVE_TRACK over video time
+   ============================================================ */
+const live = {
+  feed: "IDLE",              // IDLE | PLAYING | PAUSED | BUFFERING | LOST
+  videoT: 0,
+  state: null,               // computed by replay()
+  annotate: false,
+  draft: [],                 // annotate-mode events (localStorage-backed)
+  lastAnnounced: -1,
+};
+
+try { live.draft = JSON.parse(localStorage.getItem("pw01-live-track") || "[]"); } catch (e) { live.draft = []; }
+function trackEvents() { return LIVE_TRACK.events.length ? LIVE_TRACK.events : live.draft; }
+function saveDraft() {
+  try { localStorage.setItem("pw01-live-track", JSON.stringify(live.draft)); } catch (e) {}
+  document.getElementById("annot-count").textContent = trackEvents().length + " track events";
 }
 
-/* ---------------- feed ---------------- */
-const feedEl = document.getElementById("feed");
-function pushFeed(table, ev, cls) {
-  const d = new Date();
-  const ts = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
-  const item = document.createElement("div");
-  item.className = "feed-item" + (cls ? " " + cls : "");
-  item.innerHTML = '<span class="ts num">' + ts + '</span> · <span class="tno">TABLE ' + table.no + '</span> · <span class="ev"></span>';
-  item.querySelector(".ev").textContent = ev;
-  feedEl.prepend(item);
-  while (feedEl.children.length > 24) feedEl.lastChild.remove();
+/* Replay events <= t into a table state. Deterministic → seeking just re-replays. */
+function replayLive(t) {
+  const s = {
+    players: LIVE_TRACK.players.map(n => ({ name: n, score: 0, ext: true })),
+    turn: 0, phase: "AWAITING", nextIsBreak: true, afterBreak: false,
+    limit: RULES.standardShot, addressT: null, lastEvent: "AWAITING CV TRACK",
+  };
+  const evs = trackEvents();
+  for (const ev of evs) {
+    if (ev.t > t) break;
+    switch (ev.e) {
+      case "ADDRESS":
+      case "BREAK":
+        s.limit = ev.e === "BREAK" ? RULES.standardShot : (s.afterBreak ? RULES.afterBreak : RULES.standardShot);
+        if (ev.e === "BREAK") s.nextIsBreak = true;
+        s.phase = "ADDRESSING"; s.addressT = ev.t;
+        s.lastEvent = "PLAYER_ADDRESSING — clock " + s.limit + "s" + (s.afterBreak ? " (after break)" : "");
+        break;
+      case "SHOT": {
+        const wasBreak = s.nextIsBreak;
+        s.nextIsBreak = false; s.afterBreak = wasBreak;
+        s.phase = "GRACE"; s.addressT = null;
+        s.lastEvent = wasBreak ? "BREAK_DETECTED" : "SHOT_TAKEN";
+        break;
+      }
+      case "TURN": s.turn = 1 - s.turn; s.phase = s.phase === "ADDRESSING" ? "GRACE" : s.phase; break;
+      case "EXT": { const p = s.players[s.turn]; if (p.ext) { p.ext = false; if (s.addressT !== null) s.addressT += RULES.extension; } s.lastEvent = "EXTENSION — " + p.name; break; }
+      case "GAME": {
+        const w = s.players[s.turn]; w.score++;
+        s.players.forEach(p => p.ext = true);
+        s.nextIsBreak = true; s.afterBreak = false; s.phase = "RACKING"; s.addressT = null;
+        s.lastEvent = "GAME_OVER — rack to " + w.name;
+        break;
+      }
+    }
+  }
+  // clock from address timestamp
+  s.clock = s.limit;
+  if (s.phase === "ADDRESSING" && s.addressT !== null) {
+    s.clock = s.limit - (t - s.addressT);
+    if (s.clock <= 0) { s.clock = 0; s.phase = "EXPIRED"; s.lastEvent = "SHOT_CLOCK_FOUL (per track)"; }
+  }
+  return s;
 }
 
-/* ---------------- render ---------------- */
-const tables = Array.from({ length: 6 }, (_, i) => new Table(i));
+function announceLive(t) {
+  // feed entries for track events as playback crosses them (not on seek-backwards)
+  const evs = trackEvents();
+  for (const ev of evs) {
+    if (ev.t <= live.lastAnnounced) continue;
+    if (ev.t > t) break;
+    const names = { ADDRESS: "PLAYER_ADDRESSING", SHOT: "SHOT_TAKEN", BREAK: "BREAK_SHOT", TURN: "TURN_CHANGE", EXT: "EXTENSION", GAME: "GAME_OVER" };
+    pushFeed("TABLE 1", true, names[ev.e] + " @ " + fmtVideoT(ev.t), ev.e === "GAME" || ev.e === "EXT" || ev.e === "BREAK" ? "gold" : undefined);
+    live.lastAnnounced = ev.t;
+  }
+  if (t < live.lastAnnounced) live.lastAnnounced = t;  // seeked backwards; allow re-announce
+}
+
+function fmtVideoT(t) {
+  const m = Math.floor(t / 60), s = Math.floor(t % 60);
+  return m + ":" + String(s).padStart(2, "0");
+}
+
+/* ---------------- YouTube IFrame API ---------------- */
+let ytPlayer = null, ytReady = false;
+window.onYouTubeIframeAPIReady = function () {
+  ytPlayer = new YT.Player("yt-player", {
+    videoId: LIVE_TRACK.videoId,
+    playerVars: { rel: 0, modestbranding: 1 },
+    events: {
+      onReady: () => { ytReady = true; setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — video feed connected", "gold"); },
+      onStateChange: (e) => {
+        if (e.data === YT.PlayerState.PLAYING) setFeed("PLAYING");
+        else if (e.data === YT.PlayerState.PAUSED) { setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_HOLD — playback paused"); }
+        else if (e.data === YT.PlayerState.BUFFERING) setFeed("BUFFERING");
+        else if (e.data === YT.PlayerState.ENDED) { setFeed("PAUSED"); pushFeed("TABLE 1", true, "FEED_ENDED — video finished"); }
+      },
+      onError: () => { setFeed("LOST"); showFallback(); pushFeed("TABLE 1", true, "FEED_LOST — player error", "foul"); },
+    },
+  });
+};
+function showFallback() { document.getElementById("video-fallback").hidden = false; }
+(function loadYT() {
+  const tag = document.createElement("script");
+  tag.src = "https://www.youtube.com/iframe_api";
+  tag.onerror = () => { setFeed("LOST"); showFallback(); pushFeed("TABLE 1", true, "FEED_LOST — YouTube unreachable", "foul"); };
+  document.head.appendChild(tag);
+  setTimeout(() => { if (!ytReady && live.feed === "IDLE") { setFeed("LOST"); showFallback(); } }, 8000);
+})();
+
+function setFeed(state) {
+  live.feed = state;
+  const el = document.getElementById("feed-state");
+  el.textContent = "FEED " + state;
+  el.className = "feed-state " + (state === "PLAYING" ? "playing" : state === "LOST" ? "lost" : "paused");
+}
+
+/* ---------------- annotate mode ---------------- */
+const KEYMAP = { a: "ADDRESS", s: "SHOT", b: "BREAK", t: "TURN", e: "EXT", g: "GAME" };
+document.addEventListener("keydown", (ev) => {
+  if (!live.annotate || !ytReady) return;
+  const k = ev.key.toLowerCase();
+  if (k === "z") {
+    const undone = live.draft.pop();
+    if (undone) { saveDraft(); pushFeed("TABLE 1", true, "ANNOTATE — undid " + undone.e + " @ " + fmtVideoT(undone.t)); }
+    return;
+  }
+  if (!KEYMAP[k]) return;
+  if (LIVE_TRACK.events.length) return;   // baked-in track takes precedence; don't mix
+  const t = Math.round(ytPlayer.getCurrentTime() * 10) / 10;
+  live.draft.push({ t, e: KEYMAP[k] });
+  live.draft.sort((x, y) => x.t - y.t);
+  live.lastAnnounced = -1;                // let feed re-announce cleanly
+  saveDraft();
+  pushFeed("TABLE 1", true, "ANNOTATE — " + KEYMAP[k] + " @ " + fmtVideoT(t), "gold");
+});
+document.getElementById("btn-annotate").addEventListener("click", (e) => {
+  live.annotate = !live.annotate;
+  e.target.classList.toggle("active", live.annotate);
+  document.getElementById("annot-help").classList.toggle("show", live.annotate);
+});
+document.getElementById("btn-export").addEventListener("click", async (e) => {
+  const json = JSON.stringify(trackEvents());
+  try { await navigator.clipboard.writeText(json); e.target.textContent = "COPIED ✓"; }
+  catch (err) { window.prompt("Copy the track JSON:", json); }
+  setTimeout(() => { e.target.textContent = "EXPORT TRACK"; }, 1500);
+});
+
+/* ============================================================
+   RENDERING
+   ============================================================ */
+const tables = Array.from({ length: 5 }, (_, i) => new Table(i));
 const tablesEl = document.getElementById("tables");
 const CIRC = 2 * Math.PI * 53;
 
-function buildCards() {
-  tablesEl.innerHTML = tables.map(t => `
-    <div class="table-card" id="card-${t.no}">
-      <div class="tc-head">
-        <div class="tno">TABLE ${t.no}</div>
-        <div class="race num">RACE TO ${t.raceTo}</div>
-      </div>
-      <div class="state-badge idle" id="badge-${t.no}">RACKING</div>
-      <div class="clock-zone">
-        <div class="ring-wrap">
-          <svg viewBox="0 0 118 118" aria-hidden="true">
-            <circle class="ring-track" cx="59" cy="59" r="53"></circle>
-            <circle class="ring-val" id="ring-${t.no}" cx="59" cy="59" r="53"
-              stroke="#00d4ff" stroke-dasharray="${CIRC}" stroke-dashoffset="0"></circle>
-          </svg>
-          <div class="ring-secs">
-            <div class="t num" id="secs-${t.no}">–</div>
-            <div class="u">SECONDS</div>
-          </div>
-        </div>
-        <div class="clock-meta">
-          <div class="shot-type" id="stype-${t.no}">30S SHOT</div>
-          <div class="cv-line">LAST CV EVENT<br><b id="cv-${t.no}">—</b></div>
+function cardInner(idSuffix, tno, raceTo, isLive) {
+  return `
+    <div class="tc-head">
+      <div class="tno">${isLive ? 'TABLE 1 <span class="live-tag">· LIVE FEED</span>' : "TABLE " + tno}</div>
+      <div class="race num">RACE TO ${raceTo}</div>
+    </div>
+    <div class="state-badge idle" id="badge-${idSuffix}">—</div>
+    <div class="clock-zone">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 118 118" aria-hidden="true">
+          <circle class="ring-track" cx="59" cy="59" r="53"></circle>
+          <circle class="ring-val" id="ring-${idSuffix}" cx="59" cy="59" r="53"
+            stroke="#00d4ff" stroke-dasharray="${CIRC}" stroke-dashoffset="0"></circle>
+        </svg>
+        <div class="ring-secs">
+          <div class="t num" id="secs-${idSuffix}">–</div>
+          <div class="u">SECONDS</div>
         </div>
       </div>
-      <div class="players" id="players-${t.no}"></div>
-    </div>`).join("");
+      <div class="clock-meta">
+        <div class="shot-type" id="stype-${idSuffix}">30S SHOT</div>
+        <div class="cv-line">LAST CV EVENT<br><b id="cv-${idSuffix}">—</b></div>
+      </div>
+    </div>
+    <div class="players" id="players-${idSuffix}"></div>`;
 }
 
-function renderTable(t) {
-  const badge = document.getElementById("badge-" + t.no);
-  const card = document.getElementById("card-" + t.no);
-  const ring = document.getElementById("ring-" + t.no);
-  const secs = document.getElementById("secs-" + t.no);
-  const stype = document.getElementById("stype-" + t.no);
+function buildSimCards() {
+  tablesEl.innerHTML = tables.map(t =>
+    `<div class="table-card" id="card-${t.no}">${cardInner(t.no, t.no, t.raceTo, false)}</div>`).join("");
+}
+document.getElementById("live-card").innerHTML = cardInner("live", 1, LIVE_TRACK.raceTo, true);
+
+function paintCard(idSuffix, cardEl, view) {
+  const badge = document.getElementById("badge-" + idSuffix);
   if (!badge) return;
-
-  document.getElementById("cv-" + t.no).textContent = t.lastEvent;
-  stype.textContent = t.afterBreak && t.phase !== "ADDRESSING" || (t.phase === "ADDRESSING" && t.limit === RULES.afterBreak)
-    ? "60S — AFTER BREAK" : (t.nextIsBreak ? "BREAK SHOT" : "30S SHOT");
-  stype.className = "shot-type" + (t.limit === RULES.afterBreak && t.phase === "ADDRESSING" ? " break60" : "");
-
-  let stateCls = "idle", stateTxt = "RACKING", ringColor = "rgba(126,184,204,0.35)", cardCls = "";
-  const s = Math.ceil(t.clock);
-
-  if (t.phase === "ADDRESSING") {
-    if (t.clock <= 5)      { stateCls = "critical"; stateTxt = "CLOCK CRITICAL"; ringColor = "#ff4444"; cardCls = "state-critical"; }
-    else if (t.clock <= 10){ stateCls = "warning";  stateTxt = "CLOCK LOW";      ringColor = "#f5a623"; cardCls = "state-running"; }
-    else                   { stateCls = "running";  stateTxt = "CLOCK RUNNING";  ringColor = "#00d4ff"; cardCls = "state-running"; }
-    ring.style.strokeDashoffset = CIRC * (1 - Math.max(0, t.clock) / t.limit);
-    secs.textContent = s;
-  } else if (t.phase === "GRACE") {
-    stateCls = "held"; stateTxt = "HELD — AWAITING ADDRESS";
-    ring.style.strokeDashoffset = 0;
-    secs.textContent = t.afterBreak ? RULES.afterBreak : RULES.standardShot;
-  } else if (t.phase === "EXPIRED") {
-    stateCls = "expired"; stateTxt = "SHOT-CLOCK FOUL"; ringColor = "#ff4444"; cardCls = "state-expired";
-    ring.style.strokeDashoffset = CIRC;
-    secs.textContent = 0;
-  } else if (t.phase === "MATCH_OVER") {
-    stateCls = "idle"; stateTxt = "MATCH OVER";
-    ring.style.strokeDashoffset = 0;
-    secs.textContent = "–";
-  } else { // RACKING
-    ring.style.strokeDashoffset = 0;
-    secs.textContent = t.nextIsBreak ? "–" : t.limit;
-  }
-
-  badge.className = "state-badge " + stateCls;
-  badge.textContent = stateTxt;
-  ring.setAttribute("stroke", ringColor);
-  card.className = "table-card " + cardCls;
-
-  document.getElementById("players-" + t.no).innerHTML = t.players.map((p, i) => `
-    <div class="player ${i === t.turn && t.phase !== "MATCH_OVER" ? "at-table" : ""}">
+  document.getElementById("cv-" + idSuffix).textContent = view.lastEvent;
+  const stype = document.getElementById("stype-" + idSuffix);
+  stype.textContent = view.shotTypeLabel;
+  stype.className = "shot-type" + (view.shotTypeGold ? " break60" : "");
+  badge.className = "state-badge " + view.stateCls;
+  badge.textContent = view.stateTxt;
+  const ring = document.getElementById("ring-" + idSuffix);
+  ring.setAttribute("stroke", view.ringColor);
+  ring.style.strokeDashoffset = view.ringOffset;
+  document.getElementById("secs-" + idSuffix).textContent = view.secs;
+  if (cardEl) cardEl.className = cardEl.className.replace(/ ?state-\w+/g, "") + (view.cardCls ? " " + view.cardCls : "");
+  document.getElementById("players-" + idSuffix).innerHTML = view.players.map((p, i) => `
+    <div class="player ${i === view.turn && view.showTurn ? "at-table" : ""}">
       <span class="marker" aria-hidden="true"></span>
       <span class="pname">${p.name}</span>
       <span class="ext ${p.ext ? "avail" : "used"}">${p.ext ? "EXT ●" : "EXT USED"}</span>
@@ -497,10 +707,68 @@ function renderTable(t) {
     </div>`).join("");
 }
 
+function viewFromState(phase, clock, limit, afterBreak, nextIsBreak, players, turn, lastEvent, extraIdle) {
+  const v = {
+    players, turn, lastEvent,
+    showTurn: phase !== "MATCH_OVER",
+    shotTypeLabel: (afterBreak && phase !== "ADDRESSING") || (phase === "ADDRESSING" && limit === RULES.afterBreak)
+      ? "60S — AFTER BREAK" : (nextIsBreak ? "BREAK SHOT" : "30S SHOT"),
+    shotTypeGold: limit === RULES.afterBreak && phase === "ADDRESSING",
+    stateCls: "idle", stateTxt: extraIdle || "RACKING",
+    ringColor: "rgba(126,184,204,0.35)", ringOffset: 0, secs: "–", cardCls: "",
+  };
+  const s = Math.ceil(clock);
+  if (phase === "ADDRESSING") {
+    if (clock <= 5)       { v.stateCls = "critical"; v.stateTxt = "CLOCK CRITICAL"; v.ringColor = "#ff4444"; v.cardCls = "state-critical"; }
+    else if (clock <= 10) { v.stateCls = "warning";  v.stateTxt = "CLOCK LOW";      v.ringColor = "#f5a623"; v.cardCls = "state-running"; }
+    else                  { v.stateCls = "running";  v.stateTxt = "CLOCK RUNNING";  v.ringColor = "#00d4ff"; v.cardCls = "state-running"; }
+    v.ringOffset = CIRC * (1 - Math.max(0, clock) / limit);
+    v.secs = s;
+  } else if (phase === "GRACE") {
+    v.stateCls = "held"; v.stateTxt = "HELD — AWAITING ADDRESS";
+    v.secs = afterBreak ? RULES.afterBreak : RULES.standardShot;
+  } else if (phase === "EXPIRED") {
+    v.stateCls = "expired"; v.stateTxt = "SHOT-CLOCK FOUL"; v.ringColor = "#ff4444"; v.cardCls = "state-expired";
+    v.ringOffset = CIRC; v.secs = 0;
+  } else if (phase === "MATCH_OVER") {
+    v.stateTxt = "MATCH OVER";
+  } else if (phase === "RACKING") {
+    v.secs = nextIsBreak ? "–" : limit;
+  }
+  return v;
+}
+
+function renderSim(t) {
+  const v = viewFromState(t.phase, t.clock, t.limit, t.afterBreak, t.nextIsBreak, t.players, t.turn, t.lastEvent);
+  paintCard(t.no, document.getElementById("card-" + t.no), v);
+}
+
+function renderLive() {
+  const t = live.videoT;
+  const s = replayLive(t);
+  let v;
+  if (live.feed === "LOST") {
+    v = viewFromState("AWAITING", 0, s.limit, false, false, s.players, s.turn, "FEED_LOST", "FEED LOST");
+    v.stateCls = "expired"; v.stateTxt = "FEED LOST";
+  } else if (!trackEvents().length) {
+    v = viewFromState("AWAITING", 0, s.limit, false, false, s.players, s.turn,
+      "AWAITING CV TRACK — annotate or run the pipeline", "AWAITING CV TRACK");
+  } else {
+    const phase = s.phase === "AWAITING" ? "RACKING" : s.phase;
+    v = viewFromState(phase, s.clock, s.limit, s.afterBreak, s.nextIsBreak, s.players, s.turn, s.lastEvent);
+    if (live.feed !== "PLAYING" && phase === "ADDRESSING") {
+      v.stateCls = "held"; v.stateTxt = "CLOCK HELD — FEED " + live.feed; v.cardCls = "";
+    }
+  }
+  paintCard("live", document.getElementById("live-card"), v);
+  document.getElementById("video-time").textContent = ytReady ? "VIDEO " + fmtVideoT(t) : "--:--";
+}
+
 function renderStats() {
-  const live = tables.filter(t => t.phase !== "MATCH_OVER").length;
-  const running = tables.filter(t => t.phase === "ADDRESSING").length;
-  document.getElementById("st-tables").textContent = live;
+  const liveActive = live.feed !== "LOST" && live.feed !== "IDLE" ? 1 : 0;
+  const running = tables.filter(t => t.phase === "ADDRESSING").length
+    + (live.feed === "PLAYING" && replayLive(live.videoT).phase === "ADDRESSING" ? 1 : 0);
+  document.getElementById("st-tables").textContent = tables.filter(t => t.phase !== "MATCH_OVER").length + liveActive;
   document.getElementById("st-running").textContent = running;
   document.getElementById("st-fouls").textContent = fouls;
   document.getElementById("st-exts").textContent = extsUsed;
@@ -508,17 +776,19 @@ function renderStats() {
   document.getElementById("st-avg").innerHTML = (avg ? avg.toFixed(1) : "—") + "<small> S</small>";
 }
 
-/* ---------------- loop ---------------- */
+/* ---------------- loops ---------------- */
 const sim = { speed: 1, paused: false };
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.25, (now - last) / 1000) * sim.speed;
   last = now;
-  if (!sim.paused) {
-    tables.forEach(t => t.tick(dt));
-    tables.forEach(renderTable);
-    renderStats();
+  if (!sim.paused) { tables.forEach(t => t.tick(dt)); tables.forEach(renderSim); }
+  if (ytReady && ytPlayer.getCurrentTime) {
+    live.videoT = ytPlayer.getCurrentTime() || 0;
+    if (live.feed === "PLAYING") announceLive(live.videoT);
   }
+  renderLive();
+  renderStats();
   requestAnimationFrame(loop);
 }
 
@@ -530,11 +800,13 @@ document.querySelectorAll("[data-speed]").forEach(btn => {
 });
 document.getElementById("btn-pause").addEventListener("click", e => {
   sim.paused = !sim.paused;
-  e.target.textContent = sim.paused ? "RESUME" : "PAUSE";
+  e.target.textContent = sim.paused ? "RESUME SIM" : "PAUSE SIM";
   e.target.classList.toggle("active", sim.paused);
 });
 
-buildCards();
+buildSimCards();
+saveDraft();
+setFeed("IDLE");
 tables.forEach(t => t.emit("NEW_MATCH — " + t.players[0].name + " vs " + t.players[1].name));
 requestAnimationFrame(loop);
 </script>
