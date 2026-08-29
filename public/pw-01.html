@@ -337,7 +337,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 19 · ENGINE:pool-watcher+ml</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 20 · ENGINE:pool-watcher+ml</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -472,6 +472,8 @@
           </div>
           <div class="vp-field"><label>ML MODEL (ONNX URL)</label>
             <input class="num-input" id="cfg-model-url" type="text" value="pw-01-assets/yolov8n.onnx" spellcheck="false" style="width:100%;"></div>
+          <div class="vp-field"><label>ML LOAD (CPU SHARE) <span class="num" id="cfg-mlload-val">40</span>%</label>
+            <input id="cfg-mlload" type="range" min="10" max="50" step="5" value="40"></div>
         </div>
         <div class="vp-meters">
           <div class="meter"><div class="k">MEASURED FPS</div><div class="v num" id="m-fps">0</div></div>
@@ -1355,7 +1357,8 @@
   var DEFAULT_HYBRID_CONFIG = {
     intervalMs: 350,
     staleMs: 3e3,
-    matchReach: 2
+    matchReach: 2,
+    paceMultiplier: 1.5
   };
   var HybridEngine = class {
     constructor(base, detector, cfg2) {
@@ -1402,7 +1405,7 @@
     observe(frame) {
       const baseObs = this.base.observe(frame);
       const now = performance.now();
-      const interval = Math.max(this.cfg.intervalMs, this.lastMs * 1.5);
+      const interval = Math.max(this.cfg.intervalMs, this.lastMs * Math.max(1, this.cfg.paceMultiplier));
       if (this.detector.status === "ready" && !this.busy && now - this.lastAt >= interval && frame.image && frame.width && frame.height) {
         this.busy = true;
         const roi = this.roi;
@@ -1824,8 +1827,13 @@
     addressHoldMs: 1200,
     clockSecs: 30,
     personFps: 0,
+    mlLoad: 40,
+    // % of one core the ML detector may use (duty cycle)
     overlays: { table: true, balls: true, motion: true, players: true, state: true }
   };
+  function mlPace() {
+    return (100 - cfg.mlLoad) / cfg.mlLoad;
+  }
   function movingThresh() {
     return 75e-4 * Math.pow(0.82, cfg.sens);
   }
@@ -2322,7 +2330,7 @@
     if (kind === "ml") {
       if (!mlDetector) {
         mlDetector = new MlDetector({ modelUrl: document.getElementById("cfg-model-url").value.trim() });
-        hybridEngine = new HybridEngine(classical, mlDetector);
+        hybridEngine = new HybridEngine(classical, mlDetector, { paceMultiplier: mlPace() });
       }
       engine = hybridEngine;
       pushFeed("TABLE 1", true, "ENGINE — " + engine.name + "; loading detector…", "gold");
@@ -2360,6 +2368,12 @@
   });
   document.getElementById("cfg-person").addEventListener("change", (e) => {
     cfg.personFps = Number(e.target.value);
+  });
+  document.getElementById("cfg-mlload").addEventListener("input", (e) => {
+    cfg.mlLoad = Number(e.target.value);
+    document.getElementById("cfg-mlload-val").textContent = cfg.mlLoad;
+    if (hybridEngine) hybridEngine.cfg.paceMultiplier = mlPace();
+    pushFeed("TABLE 1", true, "CONFIG — ML load target = " + cfg.mlLoad + "%");
   });
   document.querySelectorAll("[data-layer]").forEach((btn) => {
     btn.addEventListener("click", () => {
