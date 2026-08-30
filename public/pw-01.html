@@ -362,7 +362,7 @@
     </div>
     <div class="section-label">
       <div class="big">SHOT CLOCK — TOURNAMENT OPS</div>
-      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 23 · ENGINE:pool-watcher+ml</span></div>
+      <div class="sub">TABLE 1 LIVE VISION · TABLES 2–6 SIMULATED · <span class="num" id="build-tag">BUILD 24 · ENGINE:pool-watcher+ml</span></div>
     </div>
     <div class="header-right">
       <div class="controls" role="group" aria-label="Simulation speed">
@@ -449,6 +449,11 @@
           <button class="btn" id="btn-file">CHOOSE VIDEO FILE</button>
           <input type="file" id="file-input" accept="video/*">
           <span class="video-time" id="file-name"></span>
+        </div>
+        <div class="src-row" id="transport-row" hidden>
+          <button class="btn" id="btn-play">PAUSE</button>
+          <input id="seek" type="range" min="0" max="1000" step="1" value="0" style="flex:1;">
+          <span class="video-time num" id="seek-time">—</span>
         </div>
 
         <!-- youtube mode controls -->
@@ -866,7 +871,10 @@
     ballMotionRatio: 0.18,
     minSolidity: 0.5,
     maxSolidity: 0.95,
-    minClothEnclosure: 0.5
+    minClothEnclosure: 0.5,
+    chromaThresh: 0.045,
+    clothLumaLow: 0.55,
+    clothLumaHigh: 1.28
   };
   function makeCanvas(w, h) {
     if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(w, h);
@@ -884,7 +892,10 @@
       __publicField(this, "ctx", null);
       __publicField(this, "prevGray", null);
       __publicField(this, "prevW", 0);
-      __publicField(this, "clothHue", null);
+      /** Calibrated cloth reference: chromaticity (r/Σ, g/Σ) + mean luma. Works for
+       *  ANY cloth color including gray/white broadcast cloth, which is invisible
+       *  to hue-based models (no saturation → no hue). */
+      __publicField(this, "clothRef", null);
       __publicField(this, "clothLockFrames", 0);
       __publicField(this, "camMotionEma", 0);
       __publicField(this, "prevBalls", []);
@@ -911,7 +922,7 @@
       this.prevGray = null;
       this.prevBalls = [];
       this.tablePx = null;
-      this.clothHue = null;
+      this.clothRef = null;
       this.clothLockFrames = 0;
       this.camMotionEma = 0;
     }
@@ -956,48 +967,71 @@
       else this.ctx.drawImage(img, 0, 0, aw, ah);
       const data = this.ctx.getImageData(0, 0, aw, ah).data;
       const n = aw * ah;
-      const hueBins = new Float32Array(36);
-      const hsv = new Float32Array(n * 2);
       const gray = new Uint8Array(n);
+      const HB = 24;
+      const binCnt = new Float32Array(HB * HB);
+      const binCx = new Float32Array(HB * HB);
+      const binCy = new Float32Array(HB * HB);
+      const binL = new Float32Array(HB * HB);
+      let centerCount = 0;
       for (let i = 0; i < n; i++) {
         const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
         gray[i] = r * 3 + g * 4 + b >> 3;
-        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
-        let h = 0;
-        if (c > 0) {
-          if (mx === r) h = (g - b) / c % 6;
-          else if (mx === g) h = (b - r) / c + 2;
-          else h = (r - g) / c + 4;
-          h = (h * 60 + 360) % 360;
-        }
-        const sat = mx ? c / mx : 0;
-        hsv[i * 2] = h;
-        hsv[i * 2 + 1] = sat > 0.2 && mx > 30 ? 1 : 0;
-        if (hsv[i * 2 + 1]) {
-          const x = i % aw, y = i / aw | 0;
-          if (x > aw * 0.1 && x < aw * 0.9 && y > ah * 0.1 && y < ah * 0.9) hueBins[h / 10 | 0]++;
+        const sum = r + g + b;
+        if (sum < 45) continue;
+        const x = i % aw, y = i / aw | 0;
+        if (x > aw * 0.1 && x < aw * 0.9 && y > ah * 0.1 && y < ah * 0.9) {
+          centerCount++;
+          const cx = r / sum, cy = g / sum;
+          const bi = Math.min(HB - 1, cx * HB | 0) * HB + Math.min(HB - 1, cy * HB | 0);
+          binCnt[bi]++;
+          binCx[bi] += cx;
+          binCy[bi] += cy;
+          binL[bi] += gray[i];
         }
       }
       let best = 0;
-      for (let b = 1; b < 36; b++) if (hueBins[b] > hueBins[best]) best = b;
-      const domFrac = (hueBins[(best + 35) % 36] + hueBins[best] + hueBins[(best + 1) % 36]) / n;
-      const domHue = best * 10 + 5;
-      if (this.clothHue === null || Math.abs((domHue - this.clothHue + 540) % 360 - 180) > 30) {
-        if (domFrac > 0.12) {
-          this.clothHue = domHue;
-          this.clothLockFrames = 0;
+      for (let bi = 1; bi < HB * HB; bi++) if (binCnt[bi] > binCnt[best]) best = bi;
+      let mCnt = 0, mCx = 0, mCy = 0, mL = 0;
+      const bx = best / HB | 0, by = best % HB;
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        const nx = bx + dx, ny = by + dy;
+        if (nx < 0 || nx >= HB || ny < 0 || ny >= HB) continue;
+        const bi = nx * HB + ny;
+        mCnt += binCnt[bi];
+        mCx += binCx[bi];
+        mCy += binCy[bi];
+        mL += binL[bi];
+      }
+      if (mCnt > 0) {
+        const newRef = { cx: mCx / mCnt, cy: mCy / mCnt, luma: mL / mCnt };
+        const domFrac = centerCount ? mCnt / centerCount : 0;
+        const drift = this.clothRef ? Math.abs(newRef.cx - this.clothRef.cx) + Math.abs(newRef.cy - this.clothRef.cy) : Infinity;
+        if (this.clothRef === null || drift > 0.1) {
+          if (domFrac > 0.12) {
+            this.clothRef = newRef;
+            this.clothLockFrames = 0;
+          }
+        } else {
+          this.clothRef = {
+            cx: this.clothRef.cx * 0.9 + newRef.cx * 0.1,
+            cy: this.clothRef.cy * 0.9 + newRef.cy * 0.1,
+            luma: this.clothRef.luma * 0.9 + newRef.luma * 0.1
+          };
         }
-      } else {
-        this.clothHue = this.clothHue * 0.9 + domHue * 0.1;
       }
       const GW = 24, GH = 14;
       const cellTotal = new Uint16Array(GW * GH), cellCloth = new Uint16Array(GW * GH);
       const cloth = new Uint8Array(n);
-      if (this.clothHue !== null) {
+      if (this.clothRef !== null) {
+        const ref = this.clothRef;
+        const lumaLo = ref.luma * this.cfg.clothLumaLow, lumaHi = ref.luma * this.cfg.clothLumaHigh;
         for (let i = 0; i < n; i++) {
-          if (hsv[i * 2 + 1]) {
-            const dh = Math.abs((hsv[i * 2] - this.clothHue + 540) % 360 - 180);
-            if (dh < 18) cloth[i] = 1;
+          const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+          const sum = r + g + b;
+          if (sum >= 40 && gray[i] >= lumaLo && gray[i] <= lumaHi) {
+            const chromaD = Math.abs(r / sum - ref.cx) + Math.abs(g / sum - ref.cy);
+            if (chromaD < this.cfg.chromaThresh) cloth[i] = 1;
           }
           const x = i % aw, y = i / aw | 0;
           const ci = (y * GH / ah | 0) * GW + (x * GW / aw | 0);
@@ -1725,6 +1759,7 @@
     document.getElementById("zoom-row").hidden = mode !== "camera" || document.getElementById("zoom-row").dataset.avail !== "1";
     document.getElementById("ev-row").hidden = mode !== "camera" || document.getElementById("ev-row").dataset.avail !== "1";
     els.fileControls.hidden = mode !== "file";
+    document.getElementById("transport-row").hidden = mode !== "file" || !els.cvVideo.src;
     els.ytControls.hidden = !yt;
     els.ytAnnot.hidden = !yt;
     document.getElementById("yt-explainer").hidden = !yt;
@@ -1746,7 +1781,6 @@
       if (mode === "file") {
         stopCamera();
         if (els.cvVideo.src) {
-          els.cvVideo.controls = true;
           els.cvVideo.play().catch(() => {
           });
           vision.start();
@@ -1887,16 +1921,45 @@
     if (!f) return;
     els.cvVideo.srcObject = null;
     els.cvVideo.src = URL.createObjectURL(f);
-    els.cvVideo.controls = true;
     els.cvVideo.loop = true;
     els.cvVideo.play().catch(() => {
     });
     document.getElementById("file-name").textContent = f.name;
+    document.getElementById("transport-row").hidden = false;
     hideFallback();
     setFeed("PLAYING");
     pushFeed("TABLE 1", true, "FEED_TABLE_VIEW — file loaded: " + f.name, "gold");
     vision.start();
   });
+  var transport = { dragging: false };
+  var seekEl = document.getElementById("seek");
+  function fmtSeek(s) {
+    const m = Math.floor(s / 60);
+    return m + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+  }
+  function syncTransport() {
+    const v = els.cvVideo;
+    document.getElementById("btn-play").textContent = v.paused ? "PLAY" : "PAUSE";
+    if (v.duration && !transport.dragging) seekEl.value = Math.round(v.currentTime / v.duration * 1e3);
+    document.getElementById("seek-time").textContent = v.duration ? fmtSeek(v.currentTime) + " / " + fmtSeek(v.duration) : "—";
+  }
+  document.getElementById("btn-play").addEventListener("click", () => {
+    const v = els.cvVideo;
+    if (v.paused) v.play().catch(() => {
+    });
+    else v.pause();
+  });
+  seekEl.addEventListener("input", () => {
+    transport.dragging = true;
+    const v = els.cvVideo;
+    if (v.duration) v.currentTime = v.duration * Number(seekEl.value) / 1e3;
+  });
+  seekEl.addEventListener("change", () => {
+    transport.dragging = false;
+  });
+  for (const ev of ["timeupdate", "play", "pause", "loadedmetadata", "durationchange"]) {
+    els.cvVideo.addEventListener(ev, syncTransport);
+  }
   var cfg = {
     fps: 12,
     idleFps: 3,
